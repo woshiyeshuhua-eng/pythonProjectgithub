@@ -1834,6 +1834,7 @@ h3 {
 .popup-question,
 .hint-card {
     background: #fff0ae;
+    color: #202124 !important;
 
     border: 4px solid var(--dark);
     border-radius: 14px;
@@ -1847,6 +1848,14 @@ h3 {
     font-weight: 700;
     margin-bottom: 18px;
 }
+
+.popup-question,
+.popup-question *,
+.hint-card,
+.hint-card * {
+    color: #202124 !important;
+}
+
 .correct-title,
 .wrong-title {
     font-family:
