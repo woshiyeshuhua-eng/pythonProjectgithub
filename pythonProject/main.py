@@ -7,6 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 from streamlit_sortables import sort_items
+from streamlit_js_eval import streamlit_js_eval
 
 
 st.set_page_config(
@@ -17,7 +18,8 @@ st.set_page_config(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-SAVE_FILE = BASE_DIR / "first_aid_progress.json"
+BROWSER_STORAGE_KEY = "first_aid_heroes_progress_v2"
+NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
 
 
@@ -295,76 +297,313 @@ DIFFICULTY_RULES = {
 }
 
 
-def load_progress():
-    """Load saved score, stars and unlocked modes from disk."""
 
-    if not SAVE_FILE.exists():
-        return {
-            "score": 0,
-            "completed_modes": set(),
-            "mode_stars": {},
-        }
+def empty_progress():
+    """Return a clean progress structure for a new browser user."""
+
+    return {
+        "score": 0,
+        "completed_modes": set(),
+        "mode_stars": {},
+        "attempt": None,
+        "last_screen": "home",
+        "selected_level": 0,
+        "difficulty": "Easy",
+    }
+
+
+def sanitise_progress(raw_value):
+    """Convert Local Storage data into safe Python values."""
+
+    if raw_value in (None, "", NO_BROWSER_SAVE):
+        return empty_progress()
 
     try:
-        data = json.loads(
-            SAVE_FILE.read_text(
-                encoding="utf-8",
-            )
+        data = (
+            json.loads(raw_value)
+            if isinstance(raw_value, str)
+            else raw_value
         )
 
-        completed_modes = set(
-            data.get(
-                "completed_modes",
-                [],
-            )
-        )
-
-        mode_stars = {
-            str(key): max(
-                0,
-                min(
-                    3,
-                    int(value),
-                ),
-            )
-            for key, value
-            in data.get(
-                "mode_stars",
-                {},
-            ).items()
-        }
+        if not isinstance(data, dict):
+            return empty_progress()
 
         score = max(
             0,
-            int(
+            int(data.get("score", 0)),
+        )
+
+        completed_modes = {
+            str(item)
+            for item in data.get(
+                "completed_modes",
+                [],
+            )
+            if isinstance(
+                item,
+                (str, int),
+            )
+        }
+
+        mode_stars = {}
+        raw_stars = data.get(
+            "mode_stars",
+            {},
+        )
+
+        if isinstance(raw_stars, dict):
+            for key, value in raw_stars.items():
+                try:
+                    mode_stars[str(key)] = max(
+                        0,
+                        min(
+                            3,
+                            int(value),
+                        ),
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    continue
+
+        try:
+            selected_level = int(
                 data.get(
-                    "score",
+                    "selected_level",
                     0,
                 )
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            selected_level = 0
+
+        selected_level = max(
+            0,
+            min(
+                len(LEVELS) - 1,
+                selected_level,
             ),
         )
+
+        difficulty = str(
+            data.get(
+                "difficulty",
+                "Easy",
+            )
+        )
+
+        if difficulty not in DIFFICULTIES:
+            difficulty = "Easy"
+
+        last_screen = str(
+            data.get(
+                "last_screen",
+                "home",
+            )
+        )
+
+        allowed_screens = {
+            "home",
+            "map",
+            "difficulty",
+            "scenario",
+            "puzzle",
+            "result",
+            "score",
+            "achievements",
+        }
+
+        if last_screen not in allowed_screens:
+            last_screen = "home"
+
+        attempt = data.get(
+            "attempt"
+        )
+
+        if not isinstance(
+            attempt,
+            dict,
+        ):
+            attempt = None
 
         return {
             "score": score,
             "completed_modes": completed_modes,
             "mode_stars": mode_stars,
+            "attempt": attempt,
+            "last_screen": last_screen,
+            "selected_level": selected_level,
+            "difficulty": difficulty,
         }
 
     except (
-        OSError,
         TypeError,
         ValueError,
         json.JSONDecodeError,
     ):
-        return {
-            "score": 0,
-            "completed_modes": set(),
-            "mode_stars": {},
-        }
+        return empty_progress()
 
 
-def save_progress():
-    """Save progress immediately."""
+def read_browser_progress():
+    """Read progress belonging only to the current browser."""
+
+    storage_key_json = json.dumps(
+        BROWSER_STORAGE_KEY
+    )
+
+    fallback_json = json.dumps(
+        NO_BROWSER_SAVE
+    )
+
+    return streamlit_js_eval(
+        js_expressions=(
+            "window.localStorage.getItem("
+            f"{storage_key_json}"
+            ") ?? "
+            f"{fallback_json}"
+        ),
+        want_output=True,
+        key="load_first_aid_browser_progress",
+    )
+
+
+def serialisable_layout(layout):
+    """Return a safe copy of the drag-and-drop layout."""
+
+    if not isinstance(
+        layout,
+        list,
+    ):
+        return None
+
+    cleaned = []
+
+    for container in layout:
+        if not isinstance(
+            container,
+            dict,
+        ):
+            return None
+
+        header = str(
+            container.get(
+                "header",
+                "",
+            )
+        )
+
+        items = container.get(
+            "items",
+            [],
+        )
+
+        if not isinstance(
+            items,
+            list,
+        ):
+            return None
+
+        cleaned.append(
+            {
+                "header": header,
+                "items": [
+                    str(item)
+                    for item in items
+                ],
+            }
+        )
+
+    return cleaned
+
+
+def build_attempt_payload():
+    """Build the current unfinished attempt for browser saving."""
+
+    layout = serialisable_layout(
+        st.session_state.get(
+            "layout"
+        )
+    )
+
+    start_time = st.session_state.get(
+        "start_time"
+    )
+
+    if (
+        layout is None
+        or start_time is None
+        or st.session_state.get(
+            "screen"
+        ) != "puzzle"
+    ):
+        return None
+
+    elapsed_seconds = max(
+        0,
+        int(
+            time.time()
+            - float(start_time)
+        ),
+    )
+
+    return {
+        "level_index": int(
+            st.session_state.get(
+                "selected_level",
+                0,
+            )
+        ),
+        "difficulty": str(
+            st.session_state.get(
+                "difficulty",
+                "Easy",
+            )
+        ),
+        "layout": layout,
+        "previous_layout": serialisable_layout(
+            st.session_state.get(
+                "previous_layout"
+            )
+        ),
+        "previous_sequence": list(
+            st.session_state.get(
+                "previous_sequence",
+                [None] * 6,
+            )
+        ),
+        "moves": max(
+            0,
+            int(
+                st.session_state.get(
+                    "moves",
+                    0,
+                )
+            ),
+        ),
+        "elapsed_seconds": elapsed_seconds,
+        "decision_answers": dict(
+            st.session_state.get(
+                "decision_answers",
+                {},
+            )
+        ),
+        "pending_decision": st.session_state.get(
+            "pending_decision"
+        ),
+        "show_hint": bool(
+            st.session_state.get(
+                "show_hint",
+                False,
+            )
+        ),
+    }
+
+
+def build_progress_payload():
+    """Create the complete save file for this browser user."""
 
     data = {
         "score": int(
@@ -387,55 +626,138 @@ def save_progress():
                 {},
             ).items()
         },
+        "last_screen": str(
+            st.session_state.get(
+                "screen",
+                "home",
+            )
+        ),
+        "selected_level": int(
+            st.session_state.get(
+                "selected_level",
+                0,
+            )
+        ),
+        "difficulty": str(
+            st.session_state.get(
+                "difficulty",
+                "Easy",
+            )
+        ),
+        "attempt": build_attempt_payload(),
     }
 
-    temporary_file = SAVE_FILE.with_suffix(
-        ".tmp"
+    return json.dumps(
+        data,
+        separators=(",", ":"),
     )
 
-    try:
-        temporary_file.write_text(
-            json.dumps(
-                data,
-                indent=2,
-            ),
-            encoding="utf-8",
+
+def save_progress():
+    """Queue an automatic save in this browser's Local Storage."""
+
+    st.session_state.pending_browser_action = "save"
+    st.session_state.pending_browser_payload = (
+        build_progress_payload()
+    )
+    st.session_state.browser_action_revision = (
+        int(
+            st.session_state.get(
+                "browser_action_revision",
+                0,
+            )
+        )
+        + 1
+    )
+
+
+def flush_pending_browser_action():
+    """Write a queued save/reset into Local Storage."""
+
+    action = st.session_state.get(
+        "pending_browser_action"
+    )
+
+    if action not in {
+        "save",
+        "reset",
+    }:
+        return
+
+    revision = int(
+        st.session_state.get(
+            "browser_action_revision",
+            0,
+        )
+    )
+
+    storage_key_json = json.dumps(
+        BROWSER_STORAGE_KEY
+    )
+
+    if action == "save":
+        payload_json = json.dumps(
+            st.session_state.get(
+                "pending_browser_payload",
+                "",
+            )
         )
 
-        temporary_file.replace(
-            SAVE_FILE
+        javascript = (
+            "window.localStorage.setItem("
+            f"{storage_key_json}, "
+            f"{payload_json}"
+            "); true"
         )
 
-    except OSError as error:
-        st.warning(
-            "Progress could not be saved: "
-            f"{error}"
+    else:
+        javascript = (
+            "window.localStorage.removeItem("
+            f"{storage_key_json}"
+            "); true"
         )
+
+    streamlit_js_eval(
+        js_expressions=javascript,
+        want_output=False,
+        key=(
+            "first_aid_browser_action_"
+            f"{revision}"
+        ),
+    )
+
+    st.session_state.pending_browser_action = None
+    st.session_state.pending_browser_payload = ""
 
 
 def reset_saved_progress():
-    """Clear session progress and saved progress."""
+    """Reset progress only for the current browser user."""
 
     st.session_state.score = 0
     st.session_state.completed_modes = set()
     st.session_state.mode_stars = {}
+    st.session_state.layout = None
+    st.session_state.previous_layout = None
+    st.session_state.previous_sequence = [None] * 6
+    st.session_state.moves = 0
+    st.session_state.start_time = None
+    st.session_state.decision_answers = {}
+    st.session_state.pending_decision = None
+    st.session_state.result = None
+    st.session_state.show_hint = False
+    st.session_state.screen = "home"
 
-    try:
-        if SAVE_FILE.exists():
-            SAVE_FILE.unlink()
-
-        temporary_file = SAVE_FILE.with_suffix(
-            ".tmp"
+    st.session_state.pending_browser_action = "reset"
+    st.session_state.pending_browser_payload = ""
+    st.session_state.browser_action_revision = (
+        int(
+            st.session_state.get(
+                "browser_action_revision",
+                0,
+            )
         )
-
-        if temporary_file.exists():
-            temporary_file.unlink()
-
-    except OSError as error:
-        st.warning(
-            "Saved progress could not be removed: "
-            f"{error}"
-        )
+        + 1
+    )
 
 
 def mode_key(
@@ -448,20 +770,17 @@ def mode_key(
     )
 
 
-def initialise_state():
-    saved_progress = load_progress()
+
+def initialise_state(saved_progress):
+    """Initialise the game and restore the last unfinished attempt."""
 
     defaults = {
-        "screen": "home",
-        "selected_level": 0,
-        "difficulty": "Easy",
+        "screen": saved_progress["last_screen"],
+        "selected_level": saved_progress["selected_level"],
+        "difficulty": saved_progress["difficulty"],
         "score": saved_progress["score"],
-        "completed_modes": (
-            saved_progress["completed_modes"]
-        ),
-        "mode_stars": (
-            saved_progress["mode_stars"]
-        ),
+        "completed_modes": saved_progress["completed_modes"],
+        "mode_stars": saved_progress["mode_stars"],
         "layout": None,
         "previous_layout": None,
         "previous_sequence": [None] * 6,
@@ -473,6 +792,11 @@ def initialise_state():
         "show_hint": False,
         "sort_key": 0,
         "slot_warning": False,
+        "browser_progress_loaded": True,
+        "pending_browser_action": None,
+        "pending_browser_payload": "",
+        "browser_action_revision": 0,
+        "attempt_restored": False,
     }
 
     for key, value in defaults.items():
@@ -495,113 +819,146 @@ def initialise_state():
     ):
         st.session_state.mode_stars = {}
 
-    st.session_state.completed_modes.update(
-        saved_progress["completed_modes"]
+    attempt = saved_progress.get(
+        "attempt"
     )
 
-    for saved_key, saved_stars in (
-        saved_progress["mode_stars"].items()
-    ):
-        current_stars = int(
-            st.session_state.mode_stars.get(
-                saved_key,
-                0,
-            )
+    if (
+        not st.session_state.attempt_restored
+        and isinstance(
+            attempt,
+            dict,
         )
-
-        st.session_state.mode_stars[
-            saved_key
-        ] = max(
-            current_stars,
-            int(saved_stars),
-        )
-
-    st.session_state.score = max(
-        int(st.session_state.score),
-        int(saved_progress["score"]),
-    )
-
-    old_completed = st.session_state.get(
-        "completed_levels",
-        set(),
-    )
-
-    old_stars = st.session_state.get(
-        "level_stars",
-        {},
-    )
-
-    if isinstance(
-        old_completed,
-        (
-            set,
-            list,
-            tuple,
-        ),
     ):
-        for raw_level in old_completed:
-            try:
-                level_index = int(
-                    raw_level
+        try:
+            level_index = int(
+                attempt.get(
+                    "level_index",
+                    0,
                 )
+            )
 
-            except (
-                TypeError,
-                ValueError,
-            ):
-                continue
-
-            if (
-                0
-                <= level_index
-                < len(LEVELS)
-            ):
-                easy_key = mode_key(
-                    level_index,
+            difficulty = str(
+                attempt.get(
+                    "difficulty",
                     "Easy",
                 )
+            )
 
-                st.session_state.completed_modes.add(
-                    easy_key
+            layout = serialisable_layout(
+                attempt.get(
+                    "layout"
                 )
+            )
 
-                migrated_stars = 1
+            previous_layout = serialisable_layout(
+                attempt.get(
+                    "previous_layout"
+                )
+            )
 
-                if isinstance(
-                    old_stars,
-                    dict,
-                ):
-                    migrated_stars = int(
-                        old_stars.get(
-                            level_index,
-                            old_stars.get(
-                                str(level_index),
-                                1,
-                            ),
-                        )
+            if (
+                0 <= level_index < len(LEVELS)
+                and difficulty in DIFFICULTIES
+                and layout is not None
+                and len(layout) >= 7
+            ):
+                st.session_state.selected_level = (
+                    level_index
+                )
+                st.session_state.difficulty = (
+                    difficulty
+                )
+                st.session_state.layout = (
+                    copy.deepcopy(layout)
+                )
+                st.session_state.previous_layout = (
+                    copy.deepcopy(
+                        previous_layout
+                        if previous_layout is not None
+                        else layout
                     )
-
-                migrated_stars = max(
-                    1,
-                    min(
-                        3,
-                        migrated_stars,
-                    ),
                 )
 
-                st.session_state.mode_stars[
-                    easy_key
-                ] = max(
+                previous_sequence = attempt.get(
+                    "previous_sequence",
+                    [None] * 6,
+                )
+
+                if not isinstance(
+                    previous_sequence,
+                    list,
+                ):
+                    previous_sequence = [None] * 6
+
+                st.session_state.previous_sequence = (
+                    list(previous_sequence[:6])
+                    + [None] * 6
+                )[:6]
+
+                st.session_state.moves = max(
+                    0,
                     int(
-                        st.session_state.mode_stars.get(
-                            easy_key,
+                        attempt.get(
+                            "moves",
                             0,
                         )
                     ),
-                    migrated_stars,
                 )
 
-    save_progress()
+                elapsed_seconds = max(
+                    0,
+                    int(
+                        attempt.get(
+                            "elapsed_seconds",
+                            0,
+                        )
+                    ),
+                )
+
+                st.session_state.start_time = (
+                    time.time()
+                    - elapsed_seconds
+                )
+
+                answers = attempt.get(
+                    "decision_answers",
+                    {},
+                )
+
+                st.session_state.decision_answers = (
+                    dict(answers)
+                    if isinstance(
+                        answers,
+                        dict,
+                    )
+                    else {}
+                )
+
+                st.session_state.pending_decision = (
+                    attempt.get(
+                        "pending_decision"
+                    )
+                )
+
+                st.session_state.show_hint = bool(
+                    attempt.get(
+                        "show_hint",
+                        False,
+                    )
+                )
+
+                st.session_state.screen = "puzzle"
+                st.session_state.sort_key += 1
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            pass
+
+        st.session_state.attempt_restored = True
+
 
 
 def navigate(
@@ -624,6 +981,7 @@ def navigate(
             level_index
         )
 
+    save_progress()
     st.rerun()
 
 
@@ -1180,7 +1538,32 @@ def image_data_uri(path):
     )
 
 
-initialise_state()
+browser_loaded = st.session_state.get(
+    "browser_progress_loaded",
+    False,
+)
+
+if not browser_loaded:
+    browser_value = read_browser_progress()
+
+    if browser_value is None:
+        st.info(
+            "Loading your saved progress..."
+        )
+        st.stop()
+
+    initialise_state(
+        sanitise_progress(
+            browser_value
+        )
+    )
+
+else:
+    initialise_state(
+        empty_progress()
+    )
+
+flush_pending_browser_action()
 
 
 query_screen = st.query_params.get(
@@ -2282,6 +2665,7 @@ if hasattr(
                     None,
                 )
 
+                save_progress()
                 st.rerun()
 
 else:
@@ -2608,6 +2992,7 @@ elif screen == "puzzle":
         st.session_state.sort_key += 1
         st.session_state.slot_warning = True
 
+        save_progress()
         st.rerun()
 
     old_sequence = (
@@ -2652,6 +3037,8 @@ elif screen == "puzzle":
             corrected_layout
         )
     )
+
+    save_progress()
 
     if st.session_state.slot_warning:
         st.warning(
@@ -3016,8 +3403,8 @@ elif screen == "score":
             f'/ 15'
             f'</p>'
             '<p>'
-            'Progress is automatically saved in '
-            '<b>first_aid_progress.json</b>.'
+            'Progress is automatically saved for '
+            '<b>this browser user</b>.'
             '</p>'
             '</div>'
         ),
