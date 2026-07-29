@@ -2,11 +2,13 @@ import base64
 import copy
 import json
 import random
+import re
 import time
+import urllib.parse
 from pathlib import Path
 
 import streamlit as st
-from streamlit_sortables import sort_items
+import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
 
 
@@ -19,94 +21,69 @@ st.set_page_config(
 
 BASE_DIR = Path(__file__).resolve().parent
 BROWSER_STORAGE_KEY = "first_aid_heroes_progress_v2"
+PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
+PUZZLE_NAV_STORAGE_KEY = "first_aid_heroes_pending_navigation"
 NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
 
 
 LEVELS = [
     {
-        "title": "Sprained Ankle",
-        "setting": "Basketball Court",
-        "story": "A student lands badly during basketball and injures the ankle.",
-        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6"],
-        "wrong_cards": ["L1-W1", "L1-W2", "L1-W3"],
-        "cards": {
-            "L1-1": "Student lands badly and injures the ankle",
-            "L1-2": "Student sits down and rests",
-            "L1-3": "Friend informs the teacher and gets first aid",
-            "L1-4": "Friend asks where it hurts",
-            "L1-5": "Wrapped ice pack is applied for 15–20 minutes",
-            "L1-6": "Elastic bandage is wrapped and the leg is elevated",
-            "L1-W1": "Friend twists or pulls the injured ankle",
-            "L1-W2": "Ice pack is placed directly on the skin",
-            "L1-W3": "Student stands and walks immediately",
-        },
-        "decisions": [
-            {
-                "id": "ankle_check",
-                "trigger": "L1-4",
-                "question": "What should the friend do?",
-                "options": ["Ask where it hurts", "Twist or pull the ankle"],
-                "correct": "Ask where it hurts",
-            },
-            {
-                "id": "ankle_ice",
-                "trigger": "L1-5",
-                "question": "How should the ice pack be applied?",
-                "options": [
-                    "Wrap it in a cloth first",
-                    "Place it directly on the skin",
-                ],
-                "correct": "Wrap it in a cloth first",
-            },
-        ],
-        "hint": (
-            "Rest the ankle, use a wrapped cold pack, "
-            "apply gentle compression and elevate it."
-        ),
-    },
-    {
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L2-1", "L2-2", "L2-3", "L2-4", "L2-5", "L2-6"],
-        "wrong_cards": ["L2-W1", "L2-W2", "L2-W3"],
+        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6"],
+        "wrong_cards": ["L1-W1", "L1-W2"],
         "cards": {
-            "L2-1": "Student notices that the nose is bleeding",
-            "L2-2": "Student sits upright",
-            "L2-3": "Student leans slightly forward",
-            "L2-4": "Soft part of the nose is pinched",
-            "L2-5": "Pressure is maintained continuously",
-            "L2-6": "Teacher monitors the student",
-            "L2-W1": "Student tilts the head backwards",
-            "L2-W2": "Student lies flat",
-            "L2-W3": "Student checks the nose every few seconds",
+            "L1-1": "The student notices the nosebleed and sits upright",
+            "L1-2": "Pinch the soft part of the nose continuously",
+            "L1-3": "Lean slightly forward and breathe through the mouth",
+            "L1-4": "Check whether the bleeding has stopped",
+            "L1-5": "Place a cool compress on the face or nose area",
+            "L1-6": "Continue monitoring and get adult help if needed",
+            "L1-W1": "Tilt the head backwards",
+            "L1-W2": "Lie flat while the nose is bleeding",
         },
         "decisions": [
             {
-                "id": "nose_position",
-                "trigger": "L2-3",
-                "question": "How should the student position the head?",
-                "options": [
-                    "Lean slightly forward",
-                    "Tilt the head backwards",
-                ],
-                "correct": "Lean slightly forward",
+                "id": "easy_pinching_time",
+                "difficulty": "Easy",
+                "trigger": "L1-2",
+                "question": "How long do you pinch the nose?",
+                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
+                "correct": "10-15 mins",
             },
             {
-                "id": "nose_pressure",
-                "trigger": "L2-4",
-                "question": "Where should pressure be applied?",
+                "id": "medium_compress",
+                "difficulty": "Medium",
+                "trigger": "L1-5",
+                "question": "What compress do you use?",
+                "options": ["Warm", "Hot", "Cold", "Cool"],
+                "correct": "Cool",
+            },
+            {
+                "id": "hard_pinching_place",
+                "difficulty": "Hard",
+                "trigger": "L1-3",
+                "question": "Where do you pinch the nose?",
                 "options": [
-                    "Soft part of the nose",
-                    "Bridge of the nose",
+                    "Below bridge of the nose",
+                    "On the hard bone of the nose",
                 ],
-                "correct": "Soft part of the nose",
+                "correct": "Below bridge of the nose",
+            },
+            {
+                "id": "hard_compress_time",
+                "difficulty": "Hard",
+                "trigger": "L1-5",
+                "question": "How long do you put the cool compress?",
+                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
+                "correct": "10-15 mins",
             },
         ],
         "hint": (
-            "Sit upright, lean slightly forward and pinch "
-            "the soft part of the nose continuously."
+            "Sit upright, lean slightly forward, pinch below the bridge "
+            "of the nose for 10-15 minutes and use a cool compress."
         ),
     },
     {
@@ -240,7 +217,42 @@ LEVELS = [
             "Move away from danger, alert the teacher "
             "and rinse thoroughly with running water."
         ),
+    },    {
+        "title": "Burn Injury",
+        "setting": "School Canteen",
+        "story": "A student accidentally touches a hot surface and suffers a minor burn.",
+        "correct_cards": ["L5-1", "L5-2", "L5-3", "L5-4", "L5-5", "L5-6"],
+        "wrong_cards": ["L5-W1", "L5-W2", "L5-W3"],
+        "cards": {
+            "L5-1": "Move the student away from the heat source",
+            "L5-2": "Inform a teacher or responsible adult",
+            "L5-3": "Cool the burn under cool running water",
+            "L5-4": "Remove nearby jewellery if it is safe",
+            "L5-5": "Cover the burn loosely with a clean dressing",
+            "L5-6": "Continue monitoring and seek medical help if needed",
+            "L5-W1": "Put ice directly on the burn",
+            "L5-W2": "Apply toothpaste or butter",
+            "L5-W3": "Break any blisters",
+        },
+        "decisions": [
+            {
+                "id": "burn_water",
+                "trigger": "L5-3",
+                "question": "What should be used to cool a minor burn?",
+                "options": ["Cool running water", "Ice directly on the skin"],
+                "correct": "Cool running water",
+            },
+            {
+                "id": "burn_cover",
+                "trigger": "L5-5",
+                "question": "How should the burn be covered?",
+                "options": ["Loosely with a clean dressing", "Tightly with a dirty cloth"],
+                "correct": "Loosely with a clean dressing",
+            },
+        ],
+        "hint": "Cool the burn with cool running water and cover it loosely with a clean dressing.",
     },
+
 ]
 
 
@@ -282,17 +294,17 @@ DIFFICULTY_RULES = {
     "Easy": {
         "time_multiplier": 1.30,
         "move_multiplier": 1.25,
-        "wrong_cards": 1,
+        "wrong_cards": 0,
     },
     "Medium": {
         "time_multiplier": 1.00,
         "move_multiplier": 1.00,
-        "wrong_cards": 2,
+        "wrong_cards": 0,
     },
     "Hard": {
         "time_multiplier": 0.75,
         "move_multiplier": 0.85,
-        "wrong_cards": 3,
+        "wrong_cards": 2,
     },
 }
 
@@ -797,6 +809,7 @@ def initialise_state(saved_progress):
         "pending_browser_payload": "",
         "browser_action_revision": 0,
         "attempt_restored": False,
+        "custom_attempt_id": "",
     }
 
     for key, value in defaults.items():
@@ -861,7 +874,7 @@ def initialise_state(saved_progress):
                 0 <= level_index < len(LEVELS)
                 and difficulty in DIFFICULTIES
                 and layout is not None
-                and len(layout) >= 7
+                and len(layout) >= 5
             ):
                 st.session_state.selected_level = (
                     level_index
@@ -880,21 +893,20 @@ def initialise_state(saved_progress):
                     )
                 )
 
+                expected_slots = max(1, len(layout) - 1)
+
                 previous_sequence = attempt.get(
                     "previous_sequence",
-                    [None] * 6,
+                    [None] * expected_slots,
                 )
 
-                if not isinstance(
-                    previous_sequence,
-                    list,
-                ):
-                    previous_sequence = [None] * 6
+                if not isinstance(previous_sequence, list):
+                    previous_sequence = [None] * expected_slots
 
                 st.session_state.previous_sequence = (
-                    list(previous_sequence[:6])
-                    + [None] * 6
-                )[:6]
+                    list(previous_sequence[:expected_slots])
+                    + [None] * expected_slots
+                )[:expected_slots]
 
                 st.session_state.moves = max(
                     0,
@@ -1021,6 +1033,19 @@ def difficulty_unlocked(
 
 
 def level_unlocked(level_index):
+    """
+    Level 1 is available from the beginning.
+
+    Every later level unlocks only after the player completes
+    Easy mode of the immediately previous level:
+    Level 2 <- Level 1 Easy
+    Level 3 <- Level 2 Easy
+    Level 4 <- Level 3 Easy
+    Level 5 <- Level 4 Easy
+    """
+
+    level_index = int(level_index)
+
     if level_index == 0:
         return True
 
@@ -1054,53 +1079,164 @@ def level_star_total(level_index):
     )
 
 
+
+def difficulty_code(difficulty):
+    return {
+        "Easy": "E",
+        "Medium": "M",
+        "Hard": "H",
+    }.get(difficulty, "E")
+
+
+def slot_count_for(level_index, difficulty):
+    """Easy uses 4 slots. Medium and Hard use 6 slots for Level 1."""
+
+    if int(level_index) == 0:
+        return 4 if difficulty == "Easy" else 6
+
+    return 6
+
+
+def correct_cards_for(level_index, level, difficulty):
+    """Return the correct sequence required for this difficulty."""
+
+    if int(level_index) == 0 and difficulty == "Easy":
+        return level["correct_cards"][:4]
+
+    return level["correct_cards"][:6]
+
+
+def decisions_for(level, difficulty):
+    """Only return questions belonging to the selected difficulty."""
+
+    return [
+        decision
+        for decision in level.get("decisions", [])
+        if decision.get("difficulty") in (None, difficulty)
+    ]
+
+
+def find_image_path(filename_without_extension):
+    """
+    Load an image using the exact filename.
+
+    Expected examples:
+        L1_E_1.png
+        L1_E_2.png
+        L1_M_5.png
+        L1_H_3.png
+
+    Popup questions are NOT determined by the filename.
+    They are linked by the internal card ID (trigger),
+    so you can safely rename your images to the format above.
+    """
+
+    for extension in (".png", ".jpg", ".jpeg", ".webp"):
+        candidate = BASE_DIR / f"{filename_without_extension}{extension}"
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def image_path_for_card(level_index, difficulty, card_id):
+    """
+    Convert an internal card ID such as L1-2 or L1-W1 into:
+    L1_E_2, L1_M_2, L1_H_2, or L1_H_W1.
+    """
+
+    level_number = int(level_index) + 1
+    code = difficulty_code(difficulty)
+    suffix = card_id.split("-", 1)[1]
+    return find_image_path(f"L{level_number}_{code}_{suffix}")
+
+
+def card_html(level_index, difficulty, level, card_id):
+    """Create the draggable item, using the matching picture when available."""
+
+    description = level["cards"].get(card_id, card_id)
+    image_path = image_path_for_card(
+        level_index,
+        difficulty,
+        card_id,
+    )
+
+    hidden_id = f'<span style="display:none">CARD_ID:{card_id}</span>'
+
+    if image_path is None:
+        return (
+            f'<div class="sortable-picture-card">'
+            f'<strong>{card_id}</strong><br>{description}'
+            f'{hidden_id}</div>'
+        )
+
+    image_uri = image_data_uri(image_path)
+
+    return (
+        f'<div class="sortable-picture-card">'
+        f'<img src="{image_uri}" alt="{card_id}" '
+        f'style="width:150px;max-width:100%;height:150px;'
+        f'object-fit:contain;border-radius:10px;display:block;margin:auto;">'
+        f'<div style="font-size:0.85rem;text-align:center;margin-top:5px;">'
+        f'{description}</div>{hidden_id}</div>'
+    )
+
+
+
 def card_text(
     level,
     card_id,
+    level_index=None,
+    difficulty=None,
 ):
-    return (
-        f"{card_id} | "
-        f"{level['cards'][card_id]}"
+    if level_index is None:
+        level_index = st.session_state.get("selected_level", 0)
+
+    if difficulty is None:
+        difficulty = st.session_state.get("difficulty", "Easy")
+
+    return card_html(
+        level_index,
+        difficulty,
+        level,
+        card_id,
     )
 
 
 def extract_card_id(item):
-    return item.split(
-        " | ",
-        1,
-    )[0]
+    if not isinstance(item, str):
+        return ""
+
+    match = re.search(r"CARD_ID:([A-Za-z0-9-]+)", item)
+    if match:
+        return match.group(1)
+
+    if " | " in item:
+        return item.split(" | ", 1)[0]
+
+    return item.strip()
 
 
 def start_puzzle():
-    level_index = (
-        st.session_state.selected_level
+    level_index = st.session_state.selected_level
+    difficulty = st.session_state.difficulty
+    level = LEVELS[level_index]
+
+    correct_ids = correct_cards_for(
+        level_index,
+        level,
+        difficulty,
     )
 
-    difficulty = (
-        st.session_state.difficulty
+    wrong_count = (
+        2
+        if level_index == 0 and difficulty == "Hard"
+        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
     )
 
-    level = LEVELS[
-        level_index
-    ]
-
-    wrong_count = DIFFICULTY_RULES[
-        difficulty
-    ]["wrong_cards"]
-
-    card_ids = (
-        level["correct_cards"].copy()
-    )
-
-    card_ids.extend(
-        level["wrong_cards"][
-            :wrong_count
-        ]
-    )
-
-    random.shuffle(
-        card_ids
-    )
+    card_ids = correct_ids.copy()
+    card_ids.extend(level["wrong_cards"][:wrong_count])
+    random.shuffle(card_ids)
 
     layout = [
         {
@@ -1109,38 +1245,27 @@ def start_puzzle():
                 card_text(
                     level,
                     card_id,
+                    level_index,
+                    difficulty,
                 )
-                for card_id
-                in card_ids
+                for card_id in card_ids
             ],
         }
     ]
 
-    for slot_number in range(
-        1,
-        7,
-    ):
+    slot_count = slot_count_for(level_index, difficulty)
+
+    for slot_number in range(1, slot_count + 1):
         layout.append(
             {
-                "header": (
-                    f"SLOT {slot_number}"
-                ),
+                "header": f"SLOT {slot_number}",
                 "items": [],
             }
         )
 
-    st.session_state.layout = (
-        copy.deepcopy(layout)
-    )
-
-    st.session_state.previous_layout = (
-        copy.deepcopy(layout)
-    )
-
-    st.session_state.previous_sequence = (
-        [None] * 6
-    )
-
+    st.session_state.layout = copy.deepcopy(layout)
+    st.session_state.previous_layout = copy.deepcopy(layout)
+    st.session_state.previous_sequence = [None] * slot_count
     st.session_state.moves = 0
     st.session_state.start_time = time.time()
     st.session_state.decision_answers = {}
@@ -1149,24 +1274,74 @@ def start_puzzle():
     st.session_state.show_hint = False
     st.session_state.slot_warning = False
     st.session_state.sort_key += 1
-
-    navigate(
-        "puzzle",
-        level_index,
+    st.session_state.custom_attempt_id = (
+        f"{level_index}-{difficulty}-{time.time_ns()}"
     )
 
+    result_key_json = json.dumps(
+        PUZZLE_RESULT_STORAGE_KEY
+    )
+
+    streamlit_js_eval(
+        js_expressions=(
+            "window.localStorage.removeItem("
+            f"{result_key_json}"
+            "); true"
+        ),
+        want_output=False,
+        key=(
+            "clear_pending_result_when_starting_"
+            f"{st.session_state.custom_attempt_id}"
+        ),
+    )
+
+    storage_key_json = json.dumps(
+        PUZZLE_RESULT_STORAGE_KEY
+    )
+
+    streamlit_js_eval(
+        js_expressions=(
+            "window.localStorage.removeItem("
+            f"{storage_key_json}"
+            "); true"
+        ),
+        want_output=False,
+        key=(
+            "clear_result_before_new_puzzle_"
+            f"{st.session_state.sort_key}"
+        ),
+    )
+
+    navigation_key_json = json.dumps(
+        PUZZLE_NAV_STORAGE_KEY
+    )
+
+    streamlit_js_eval(
+        js_expressions=(
+            "window.localStorage.removeItem("
+            f"{navigation_key_json}"
+            "); true"
+        ),
+        want_output=False,
+        key=(
+            "clear_navigation_before_new_puzzle_"
+            f"{st.session_state.sort_key}"
+        ),
+    )
+
+    navigate("puzzle", level_index)
 
 def sequence_from_layout(layout):
+    if not isinstance(layout, list) or len(layout) < 2:
+        return []
+
     sequence = []
 
-    for slot in layout[1:7]:
-        if len(slot["items"]) == 1:
-            sequence.append(
-                extract_card_id(
-                    slot["items"][0]
-                )
-            )
+    for slot in layout[1:]:
+        items = slot.get("items", []) if isinstance(slot, dict) else []
 
+        if len(items) == 1:
+            sequence.append(extract_card_id(items[0]))
         else:
             sequence.append(None)
 
@@ -1174,45 +1349,30 @@ def sequence_from_layout(layout):
 
 
 def slots_complete(layout):
-    if not layout:
-        return False
-
-    if len(layout) < 7:
+    if not isinstance(layout, list) or len(layout) < 2:
         return False
 
     return all(
-        len(
-            layout[index]["items"]
-        ) == 1
-        for index
-        in range(
-            1,
-            7,
-        )
+        isinstance(container, dict)
+        and len(container.get("items", [])) == 1
+        for container in layout[1:]
     )
 
 
 def limit_one_card_per_slot(layout):
-    corrected = copy.deepcopy(
-        layout
-    )
+    if not isinstance(layout, list):
+        return (
+            copy.deepcopy(st.session_state.layout),
+            False,
+        )
 
-    previous = (
-        st.session_state.previous_layout
-    )
-
+    corrected = copy.deepcopy(layout)
+    previous = st.session_state.previous_layout
     returned_cards = []
     changed = False
 
-    for slot_index in range(
-        1,
-        7,
-    ):
-        items = list(
-            corrected[
-                slot_index
-            ]["items"]
-        )
+    for slot_index in range(1, len(corrected)):
+        items = list(corrected[slot_index].get("items", []))
 
         if len(items) <= 1:
             continue
@@ -1221,59 +1381,34 @@ def limit_one_card_per_slot(layout):
         card_to_keep = None
 
         if (
-            previous
+            isinstance(previous, list)
             and len(previous) > slot_index
-            and previous[
-                slot_index
-            ]["items"]
+            and previous[slot_index].get("items", [])
         ):
-            previous_item = previous[
-                slot_index
-            ]["items"][0]
-
+            previous_item = previous[slot_index]["items"][0]
             if previous_item in items:
-                card_to_keep = (
-                    previous_item
-                )
+                card_to_keep = previous_item
 
         if card_to_keep is None:
             card_to_keep = items[0]
 
         kept_once = False
-        extra_cards = []
+        extras = []
 
         for item in items:
-            if (
-                item == card_to_keep
-                and not kept_once
-            ):
+            if item == card_to_keep and not kept_once:
                 kept_once = True
-
             else:
-                extra_cards.append(
-                    item
-                )
+                extras.append(item)
 
-        corrected[
-            slot_index
-        ]["items"] = [
-            card_to_keep
-        ]
-
-        returned_cards.extend(
-            extra_cards
-        )
+        corrected[slot_index]["items"] = [card_to_keep]
+        returned_cards.extend(extras)
 
     for item in returned_cards:
         if item not in corrected[0]["items"]:
-            corrected[0]["items"].append(
-                item
-            )
+            corrected[0]["items"].append(item)
 
-    return (
-        corrected,
-        changed,
-    )
+    return corrected, changed
 
 
 def detect_new_decision(
@@ -1299,7 +1434,7 @@ def detect_new_decision(
         new_cards - old_cards
     )
 
-    for decision in level["decisions"]:
+    for decision in decisions_for(level, st.session_state.difficulty):
         if (
             decision["trigger"]
             in newly_added_cards
@@ -1315,7 +1450,7 @@ def get_decision(
     level,
     decision_id,
 ):
-    for decision in level["decisions"]:
+    for decision in decisions_for(level, st.session_state.difficulty):
         if (
             decision["id"]
             == decision_id
@@ -1327,10 +1462,11 @@ def get_decision(
 
 def decisions_complete(level):
     return all(
-        decision["id"]
-        in st.session_state.decision_answers
-        for decision
-        in level["decisions"]
+        decision["id"] in st.session_state.decision_answers
+        for decision in decisions_for(
+            level,
+            st.session_state.difficulty,
+        )
     )
 
 
@@ -1399,9 +1535,14 @@ def evaluate_level():
         st.session_state.layout
     )
 
+    required_sequence = correct_cards_for(
+        level_index,
+        level,
+        difficulty,
+    )
+
     sequence_correct = (
-        sequence
-        == level["correct_cards"]
+        sequence == required_sequence
     )
 
     decision_results = [
@@ -1410,7 +1551,7 @@ def evaluate_level():
         )
         == decision["correct"]
         for decision
-        in level["decisions"]
+        in decisions_for(level, difficulty)
     ]
 
     passed = (
@@ -1538,6 +1679,778 @@ def image_data_uri(path):
     )
 
 
+
+def encode_image_for_html(path):
+    """Return a data URI for a local image path, or an empty string."""
+
+    if path is None or not path.exists():
+        return ""
+
+    return image_data_uri(path)
+
+
+def custom_puzzle_cards(level_index, difficulty, level):
+    """Build the exact card list required for the selected mode."""
+
+    correct_ids = correct_cards_for(
+        level_index,
+        level,
+        difficulty,
+    )
+
+    wrong_count = (
+        2
+        if level_index == 0 and difficulty == "Hard"
+        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
+    )
+
+    card_ids = correct_ids.copy()
+    card_ids.extend(level["wrong_cards"][:wrong_count])
+    random.shuffle(card_ids)
+
+    cards = []
+
+    for card_id in card_ids:
+        image_path = image_path_for_card(
+            level_index,
+            difficulty,
+            card_id,
+        )
+
+        cards.append(
+            {
+                "id": card_id,
+                "label": level["cards"].get(card_id, card_id),
+                "image": encode_image_for_html(image_path),
+            }
+        )
+
+    return cards
+
+
+def submit_custom_result(payload):
+    """Evaluate a result sent back from the custom HTML puzzle."""
+
+    level_index = st.session_state.selected_level
+    difficulty = st.session_state.difficulty
+    level = LEVELS[level_index]
+
+    # Accept the completed payload after the iframe reloads the main app.
+    # The pending result is cleared when a new puzzle starts and again after
+    # processing, so an attempt-ID comparison is unnecessary and would reject
+    # valid results after a full page reload.
+    sequence = payload.get("sequence", [])
+    answers = payload.get("answers", {})
+    moves = max(0, int(payload.get("moves", 0)))
+    elapsed = max(0, int(payload.get("elapsed", 0)))
+
+    required_sequence = correct_cards_for(
+        level_index,
+        level,
+        difficulty,
+    )
+
+    sequence_correct = sequence == required_sequence
+
+    relevant_decisions = decisions_for(
+        level,
+        difficulty,
+    )
+
+    decisions_correct = all(
+        answers.get(decision["id"]) == decision["correct"]
+        for decision in relevant_decisions
+    )
+
+    passed = sequence_correct and decisions_correct
+
+    target = targets(
+        level_index,
+        difficulty,
+    )
+
+    if (
+        passed
+        and elapsed <= target["three_time"]
+        and moves <= target["three_moves"]
+    ):
+        stars = 3
+    elif (
+        passed
+        and elapsed <= target["two_time"]
+        and moves <= target["two_moves"]
+    ):
+        stars = 2
+    elif passed:
+        stars = 1
+    else:
+        stars = 0
+
+    current_mode_key = mode_key(
+        level_index,
+        difficulty,
+    )
+
+    previous_best = int(
+        st.session_state.mode_stars.get(
+            current_mode_key,
+            0,
+        )
+    )
+
+    new_points = 0
+
+    if passed:
+        st.session_state.completed_modes.add(
+            current_mode_key
+        )
+
+        if stars > previous_best:
+            gained_stars = stars - previous_best
+            new_points = gained_stars * 10
+            st.session_state.score += new_points
+            st.session_state.mode_stars[current_mode_key] = stars
+        elif current_mode_key not in st.session_state.mode_stars:
+            st.session_state.mode_stars[current_mode_key] = stars
+
+    st.session_state.moves = moves
+    st.session_state.start_time = time.time() - elapsed
+    st.session_state.decision_answers = dict(answers)
+    st.session_state.result = {
+        "passed": passed,
+        "sequence_correct": sequence_correct,
+        "time": elapsed,
+        "moves": moves,
+        "stars": stars,
+        "points": new_points,
+        "difficulty": difficulty,
+        "level_index": level_index,
+    }
+    st.session_state.show_hint = False
+    st.session_state.custom_attempt_id = ""
+    st.session_state.screen = "result"
+
+    st.query_params.clear()
+    st.query_params["screen"] = "result"
+    st.query_params["level"] = str(level_index)
+
+    save_progress()
+
+    # Write the browser save before rerunning so the result screen survives
+    # the next Streamlit refresh.
+    flush_pending_browser_action()
+    st.rerun()
+
+
+def render_custom_image_puzzle():
+    """Render a real image drag-and-drop puzzle inside a custom HTML component."""
+
+    if not st.session_state.get("custom_attempt_id"):
+        st.session_state.custom_attempt_id = (
+            f"{st.session_state.selected_level}-"
+            f"{st.session_state.difficulty}-"
+            f"{time.time_ns()}"
+        )
+
+    attempt_id = st.session_state.custom_attempt_id
+    level_index = st.session_state.selected_level
+    difficulty = st.session_state.difficulty
+    level = LEVELS[level_index]
+    slot_count = slot_count_for(level_index, difficulty)
+
+    cards = custom_puzzle_cards(
+        level_index,
+        difficulty,
+        level,
+    )
+
+    decisions = decisions_for(
+        level,
+        difficulty,
+    )
+
+    cards_json = json.dumps(cards)
+    decisions_json = json.dumps(decisions)
+    correct_order_json = json.dumps(
+        correct_cards_for(
+            level_index,
+            level,
+            difficulty,
+        )
+    )
+
+    start_seconds = 0
+    if st.session_state.start_time is not None:
+        start_seconds = max(
+            0,
+            int(time.time() - st.session_state.start_time),
+        )
+
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_parent">
+<meta charset="utf-8">
+<style>
+    * {{
+        box-sizing: border-box;
+    }}
+
+    body {{
+        margin: 0;
+        padding: 12px;
+        font-family: Arial, sans-serif;
+        background: transparent;
+        color: #202124;
+    }}
+
+    .game-shell {{
+        background: #fffaf0;
+        border: 5px solid #202124;
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 8px 8px 0 #202124;
+    }}
+
+    .status-row {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }}
+
+    .status-box {{
+        background: white;
+        border: 4px solid #202124;
+        border-radius: 12px;
+        text-align: center;
+        padding: 10px;
+        font-weight: 900;
+        box-shadow: 4px 4px 0 #202124;
+    }}
+
+    .tray-title,
+    .slot-title {{
+        font-weight: 900;
+        margin-bottom: 7px;
+    }}
+
+    .tray {{
+        min-height: 190px;
+        padding: 12px;
+        border: 4px dashed #202124;
+        border-radius: 14px;
+        background: #eaf7ff;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 18px;
+    }}
+
+    .slots {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+    }}
+
+    .slot {{
+        min-height: 220px;
+        padding: 8px;
+        border: 4px dashed #202124;
+        border-radius: 14px;
+        background: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+    }}
+
+    .slot.drop-active,
+    .tray.drop-active {{
+        background: #fff0ae;
+    }}
+
+    .slot-body {{
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }}
+
+    .card {{
+        width: 160px;
+        max-width: 100%;
+        background: white;
+        border: 4px solid #202124;
+        border-radius: 12px;
+        padding: 7px;
+        box-shadow: 4px 4px 0 #202124;
+        cursor: grab;
+        user-select: none;
+        touch-action: none;
+    }}
+
+    .card:active {{
+        cursor: grabbing;
+    }}
+
+    .card img {{
+        width: 100%;
+        height: 135px;
+        object-fit: contain;
+        display: block;
+        border-radius: 8px;
+        background: white;
+    }}
+
+    .card-label {{
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        margin-top: 6px;
+        line-height: 1.2;
+    }}
+
+    .missing-image {{
+        height: 135px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eeeeee;
+        border-radius: 8px;
+        font-weight: 900;
+    }}
+
+    .controls {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 18px;
+    }}
+
+    button,
+    .control-link {{
+        min-height: 54px;
+        border: 4px solid #202124;
+        border-radius: 10px;
+        background: #20a43a;
+        color: white;
+        box-shadow: 5px 5px 0 #202124;
+        font-weight: 900;
+        font-size: 16px;
+        cursor: pointer;
+    }}
+
+    .control-link {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        background: #ffca28;
+        color: #202124;
+        position: relative;
+        z-index: 10000;
+        pointer-events: auto;
+    }}
+
+    button:hover,
+    .control-link:hover {{
+        background: #ffca28;
+        color: #202124;
+    }}
+
+    button:active {{
+        transform: translate(4px, 4px);
+        box-shadow: 1px 1px 0 #202124;
+    }}
+
+    .message {{
+        min-height: 28px;
+        margin-top: 14px;
+        font-weight: 900;
+        color: #c62828;
+        text-align: center;
+    }}
+
+    .modal-backdrop {{
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.58);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 18px;
+    }}
+
+    .modal {{
+        width: min(500px, 96vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        background: white;
+        border: 5px solid #202124;
+        border-radius: 16px;
+        box-shadow: 9px 9px 0 #202124;
+        padding: 18px;
+    }}
+
+    .modal img {{
+        width: 100%;
+        max-height: 260px;
+        object-fit: contain;
+        border-radius: 10px;
+        margin-bottom: 12px;
+    }}
+
+    .question {{
+        background: #fff0ae;
+        border: 4px solid #202124;
+        border-radius: 12px;
+        padding: 14px;
+        font-weight: 900;
+        margin-bottom: 12px;
+    }}
+
+    .option {{
+        display: block;
+        background: #f5f5f5;
+        border: 3px solid #202124;
+        border-radius: 10px;
+        padding: 10px;
+        margin: 8px 0;
+        font-weight: 700;
+    }}
+
+    @media (max-width: 780px) {{
+        .slots {{
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }}
+
+        .status-row {{
+            grid-template-columns: 1fr;
+        }}
+
+        .controls {{
+            grid-template-columns: 1fr;
+        }}
+    }}
+</style>
+</head>
+<body>
+<div class="game-shell">
+    <div class="status-row">
+        <div class="status-box">DIFFICULTY<br>{difficulty}</div>
+        <div class="status-box">MOVES<br><span id="moves">0</span></div>
+        <div class="status-box">TIME<br><span id="timer">{start_seconds}s</span></div>
+    </div>
+
+    <div class="tray-title">CARD TRAY</div>
+    <div id="tray" class="tray"></div>
+
+    <div id="slots" class="slots"></div>
+
+    <div class="controls">
+        <a id="backLink" class="control-link" href="/?screen=map" target="_parent">BACK</a>
+        <button id="restartBtn">RESTART</button>
+        <button id="doneBtn">DONE</button>
+    </div>
+
+    <div id="message" class="message"></div>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal">
+        <img id="modalImage" alt="">
+        <div id="modalQuestion" class="question"></div>
+        <div id="modalOptions"></div>
+        <button id="confirmDecision">CONFIRM ANSWER</button>
+    </div>
+</div>
+
+<script>
+const cards = {cards_json};
+const decisions = {decisions_json};
+const correctOrder = {correct_order_json};
+const slotCount = {slot_count};
+const initialElapsed = {start_seconds};
+
+let moves = 0;
+let elapsed = initialElapsed;
+let draggedId = null;
+let activeDecision = null;
+let selectedAnswer = null;
+const answers = {{}};
+
+const tray = document.getElementById("tray");
+const slotsRoot = document.getElementById("slots");
+const message = document.getElementById("message");
+const modalBackdrop = document.getElementById("modalBackdrop");
+const modalImage = document.getElementById("modalImage");
+const modalQuestion = document.getElementById("modalQuestion");
+const modalOptions = document.getElementById("modalOptions");
+
+function cardData(id) {{
+    return cards.find(card => card.id === id);
+}}
+
+function buildCard(card) {{
+    const node = document.createElement("div");
+    node.className = "card";
+    node.draggable = true;
+    node.dataset.cardId = card.id;
+
+    if (card.image) {{
+        const image = document.createElement("img");
+        image.src = card.image;
+        image.alt = card.label;
+        node.appendChild(image);
+    }} else {{
+        const missing = document.createElement("div");
+        missing.className = "missing-image";
+        missing.textContent = card.id + " image missing";
+        node.appendChild(missing);
+    }}
+
+    const label = document.createElement("div");
+    label.className = "card-label";
+    label.textContent = card.label;
+    node.appendChild(label);
+
+    node.addEventListener("dragstart", event => {{
+        draggedId = card.id;
+        event.dataTransfer.setData("text/plain", card.id);
+        event.dataTransfer.effectAllowed = "move";
+    }});
+
+    node.addEventListener("dragend", () => {{
+        draggedId = null;
+        document.querySelectorAll(".drop-active")
+            .forEach(element => element.classList.remove("drop-active"));
+    }});
+
+    return node;
+}}
+
+function createSlot(index) {{
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    slot.dataset.slotIndex = String(index);
+
+    const title = document.createElement("div");
+    title.className = "slot-title";
+    title.textContent = "SLOT " + (index + 1);
+
+    const body = document.createElement("div");
+    body.className = "slot-body";
+
+    slot.appendChild(title);
+    slot.appendChild(body);
+
+    makeDropTarget(slot, body, false);
+    return slot;
+}}
+
+function makeDropTarget(target, body, isTray) {{
+    target.addEventListener("dragover", event => {{
+        event.preventDefault();
+        target.classList.add("drop-active");
+    }});
+
+    target.addEventListener("dragleave", () => {{
+        target.classList.remove("drop-active");
+    }});
+
+    target.addEventListener("drop", event => {{
+        event.preventDefault();
+        target.classList.remove("drop-active");
+
+        const cardId = event.dataTransfer.getData("text/plain") || draggedId;
+        if (!cardId) return;
+
+        const cardNode = document.querySelector(
+            `.card[data-card-id="${{CSS.escape(cardId)}}"]`
+        );
+
+        if (!cardNode) return;
+
+        if (isTray) {{
+            tray.appendChild(cardNode);
+            moves += 1;
+            updateMoves();
+            return;
+        }}
+
+        const existing = body.querySelector(".card");
+
+        if (existing && existing.dataset.cardId !== cardId) {{
+            tray.appendChild(existing);
+        }}
+
+        body.appendChild(cardNode);
+        moves += 1;
+        updateMoves();
+        triggerDecision(cardId);
+    }});
+}}
+
+function updateMoves() {{
+    document.getElementById("moves").textContent = String(moves);
+}}
+
+function triggerDecision(cardId) {{
+    const decision = decisions.find(
+        item => item.trigger === cardId && !(item.id in answers)
+    );
+
+    if (!decision) return;
+
+    activeDecision = decision;
+    selectedAnswer = null;
+
+    const card = cardData(cardId);
+    modalImage.style.display = card && card.image ? "block" : "none";
+    modalImage.src = card && card.image ? card.image : "";
+    modalQuestion.textContent = decision.question;
+    modalOptions.innerHTML = "";
+
+    decision.options.forEach(option => {{
+        const label = document.createElement("label");
+        label.className = "option";
+
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "decisionOption";
+        radio.value = option;
+        radio.addEventListener("change", () => {{
+            selectedAnswer = option;
+        }});
+
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(" " + option));
+        modalOptions.appendChild(label);
+    }});
+
+    modalBackdrop.style.display = "flex";
+    modalBackdrop.scrollTop = 0;
+}}
+
+document.getElementById("confirmDecision").addEventListener("click", () => {{
+    if (!activeDecision || selectedAnswer === null) {{
+        alert("Choose one answer first.");
+        return;
+    }}
+
+    answers[activeDecision.id] = selectedAnswer;
+    modalBackdrop.style.display = "none";
+    activeDecision = null;
+    selectedAnswer = null;
+}});
+
+function currentSequence() {{
+    return Array.from(document.querySelectorAll(".slot-body"))
+        .map(body => {{
+            const card = body.querySelector(".card");
+            return card ? card.dataset.cardId : null;
+        }});
+}}
+
+function submitToStreamlit(payload) {{
+    const jsonText = JSON.stringify(payload);
+
+    try {{
+        /*
+        Save the completed puzzle where the main Streamlit page can read it.
+        The Python side checks this value every second and opens the result
+        page automatically.
+        */
+        window.parent.localStorage.setItem(
+            "first_aid_heroes_pending_puzzle_result",
+            jsonText
+        );
+
+        message.textContent = "Checking your answers...";
+
+        setTimeout(() => {{
+            try {{
+                window.parent.location.reload();
+            }} catch (reloadError) {{
+                console.error(reloadError);
+            }}
+        }}, 180);
+    }} catch (error) {{
+        message.textContent =
+            "Unable to submit the result. Please refresh and try again.";
+        console.error(error);
+    }}
+}}
+
+document.getElementById("doneBtn").addEventListener("click", () => {{
+    message.textContent = "";
+
+    const sequence = currentSequence();
+
+    if (sequence.some(item => item === null)) {{
+        message.textContent = "Place one picture in every slot.";
+        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
+        return;
+    }}
+
+    const unansweredDecisions = decisions.filter(
+        item => !(item.id in answers)
+    );
+
+    if (unansweredDecisions.length > 0) {{
+        message.textContent =
+            "Answer the popup question before pressing DONE.";
+        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
+
+        const missingDecision = unansweredDecisions[0];
+        triggerDecision(missingDecision.trigger);
+        return;
+    }}
+
+    message.textContent = "Checking your answers...";
+
+    submitToStreamlit({{
+        sequence,
+        answers,
+        moves,
+        elapsed,
+        attempt_id: "{attempt_id}"
+    }});
+}});
+
+document.getElementById("restartBtn").addEventListener("click", () => {{
+    window.location.reload();
+}});
+
+
+
+cards.forEach(card => {{
+    tray.appendChild(buildCard(card));
+}});
+
+for (let index = 0; index < slotCount; index += 1) {{
+    slotsRoot.appendChild(createSlot(index));
+}}
+
+makeDropTarget(tray, tray, true);
+
+setInterval(() => {{
+    elapsed += 1;
+    document.getElementById("timer").textContent = elapsed + "s";
+}}, 1000);
+</script>
+</body>
+</html>
+"""
+
+    components.html(
+        html,
+        height=980 if slot_count >= 6 else 800,
+        scrolling=True,
+    )
+
 browser_loaded = st.session_state.get(
     "browser_progress_loaded",
     False,
@@ -1575,6 +2488,28 @@ query_level = st.query_params.get(
 )
 
 
+
+custom_submit_value = st.query_params.get("puzzle_submit")
+
+if custom_submit_value:
+    try:
+        padding = "=" * (-len(custom_submit_value) % 4)
+        decoded = base64.urlsafe_b64decode(
+            custom_submit_value + padding
+        ).decode("utf-8")
+
+        payload = json.loads(decoded)
+        st.query_params.pop("puzzle_submit", None)
+        submit_custom_result(payload)
+
+    except Exception as error:
+        st.query_params.pop("puzzle_submit", None)
+        st.error(
+            "The puzzle result could not be processed. "
+            "Please try the level again."
+        )
+
+
 VALID_SCREENS = {
     "home",
     "map",
@@ -1588,9 +2523,11 @@ VALID_SCREENS = {
 
 
 if query_screen in VALID_SCREENS:
-    st.session_state.screen = (
-        query_screen
-    )
+    st.session_state.screen = query_screen
+elif query_screen is None and not st.query_params:
+    # A clean localhost/cloud URL opens the main page.
+    # Saved scores and stars remain available.
+    st.session_state.screen = "home"
 
 
 if query_level is not None:
@@ -1658,6 +2595,33 @@ CSS = """
 
 [data-testid="stToolbar"] {
     visibility: hidden;
+}
+
+/* Hide the invisible JavaScript helper frames used for browser saving. */
+iframe[title*="streamlit_js_eval"],
+iframe[title*="streamlit-js-eval"] {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    border: 0 !important;
+}
+
+div[data-testid="stCustomComponentV1"]:has(
+    iframe[title*="streamlit_js_eval"]
+),
+div[data-testid="stCustomComponentV1"]:has(
+    iframe[title*="streamlit-js-eval"]
+) {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Extra protection for zero-height helper component containers. */
+div[data-testid="stCustomComponentV1"] iframe[height="0"] {
+    display: none !important;
 }
 
 .block-container {
@@ -2057,192 +3021,74 @@ div.stButton > button:disabled {
 
 .map-level-hotspot {
     position: absolute;
-    z-index: 40;
-
+    z-index: 80;
     display: block;
-
     border-radius: 50%;
-
     text-decoration: none;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.001);
+}
+
+/* Only unlocked levels behave like clickable buttons. */
+.map-level-hotspot.unlocked {
     cursor: pointer;
-
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            0.001
-        );
 }
 
-.map-level-hotspot:hover {
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            0.20
-        );
-
-    box-shadow:
-        inset
-        0 0 0 7px
-        rgba(
-            255,
-            255,
-            255,
-            0.85
-        );
+.map-level-hotspot.unlocked:hover {
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.35);
 }
 
+/* Locked levels are not links and cannot be clicked. */
 .map-level-hotspot.locked {
     cursor: not-allowed;
-
-    background:
-        rgba(
-            80,
-            80,
-            80,
-            0.05
-        );
+    pointer-events: none;
+    background: transparent;
 }
 
-/* Positions for progress_map.png */
-
+/*
+Invisible hotspot positions aligned to the five circular level nodes
+in progress_map.png. Percentages keep the alignment responsive.
+*/
 .map-level-1 {
-    left: 5.2%;
-    top: 48%;
-    width: 16%;
-    height: 30%;
+    left: 7.2%;
+    top: 45.0%;
+    width: 12.0%;
+    aspect-ratio: 1 / 1;
 }
 
 .map-level-2 {
-    left: 24%;
-    top: 41%;
-    width: 15.5%;
-    height: 30%;
+    left: 26.0%;
+    top: 37.0%;
+    width: 12.0%;
+    aspect-ratio: 1 / 1;
 }
 
 .map-level-3 {
-    left: 41%;
-    top: 29%;
-    width: 15.5%;
-    height: 30%;
+    left: 44.4%;
+    top: 25.8%;
+    width: 12.0%;
+    aspect-ratio: 1 / 1;
 }
 
 .map-level-4 {
-    left: 58%;
-    top: 14%;
-    width: 15.5%;
-    height: 30%;
+    left: 62.8%;
+    top: 7.4%;
+    width: 12.0%;
+    aspect-ratio: 1 / 1;
 }
 
 .map-level-5 {
-    left: 80.5%;
-    top: 11.5%;
-    width: 15.5%;
-    height: 30%;
+    left: 85.0%;
+    top: 5.8%;
+    width: 12.0%;
+    aspect-ratio: 1 / 1;
 }
 
+/* Do not place extra labels or total boxes over the artwork. */
+.map-level-badge,
 .map-progress-pill {
-    position: absolute;
-
-    left: 3%;
-    bottom: 3.5%;
-
-    z-index: 50;
-
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            0.95
-        );
-
-    border: 4px solid var(--dark);
-    border-radius: 18px;
-
-    padding: 10px 18px;
-
-    box-shadow:
-        5px 5px 0
-        var(--dark);
-
-    font-family:
-        "Bangers",
-        cursive;
-
-    font-size:
-        clamp(
-            1.2rem,
-            2.5vw,
-            2.2rem
-        );
-}
-
-.map-level-badge {
-    position: absolute;
-    z-index: 55;
-
-    transform:
-        translate(
-            -50%,
-            -50%
-        );
-
-    background:
-        rgba(
-            255,
-            255,
-            255,
-            0.95
-        );
-
-    border: 3px solid var(--dark);
-    border-radius: 12px;
-
-    padding: 4px 8px;
-
-    box-shadow:
-        3px 3px 0
-        var(--dark);
-
-    font-weight: 900;
-
-    font-size:
-        clamp(
-            0.65rem,
-            1.2vw,
-            1rem
-        );
-
-    pointer-events: none;
-}
-
-.badge-1 {
-    left: 13%;
-    top: 79%;
-}
-
-.badge-2 {
-    left: 31.8%;
-    top: 72%;
-}
-
-.badge-3 {
-    left: 48.8%;
-    top: 59.5%;
-}
-
-.badge-4 {
-    left: 65.8%;
-    top: 44.5%;
-}
-
-.badge-5 {
-    left: 88.3%;
-    top: 42%;
+    display: none !important;
 }
 
 @media (max-width: 800px) {
@@ -2261,6 +3107,22 @@ div.stButton > button:disabled {
         padding: 5px 8px;
     }
 }
+
+.sortable-picture-card {
+    min-width: 160px;
+    max-width: 180px;
+    padding: 8px;
+    background: white;
+    border: 3px solid #202124;
+    border-radius: 12px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+[data-testid="stImage"] img {
+    border-radius: 12px;
+}
+
 </style>
 """
 
@@ -2382,97 +3244,47 @@ def render_home():
 
 
 def render_map():
-    map_path = (
-        BASE_DIR
-        / "progress_map.png"
-    )
+    map_path = BASE_DIR / "progress_map.png"
 
     if map_path.exists():
-        map_uri = image_data_uri(
-            map_path
-        )
-
+        map_uri = image_data_uri(map_path)
         hotspot_parts = []
-        badge_parts = []
 
-        for level_index in range(
-            len(LEVELS)
-        ):
-            unlocked = level_unlocked(
-                level_index
-            )
-
-            stars = level_star_total(
-                level_index
-            )
-
-            level_number = (
-                level_index + 1
-            )
+        for level_index in range(len(LEVELS)):
+            unlocked = level_unlocked(level_index)
+            level_number = level_index + 1
 
             if unlocked:
+                # Only unlocked levels are real clickable links.
                 hotspot_parts.append(
                     (
                         f'<a '
-                        f'class="map-level-hotspot '
+                        f'class="map-level-hotspot unlocked '
                         f'map-level-{level_number}" '
-                        f'href="?screen=difficulty'
-                        f'&level={level_index}" '
+                        f'href="?screen=difficulty&level={level_index}" '
                         f'target="_self" '
-                        f'title="Open Level '
-                        f'{level_number}" '
-                        f'aria-label="Open Level '
-                        f'{level_number}">'
+                        f'title="Open Level {level_number}" '
+                        f'aria-label="Open Level {level_number}">'
                         f'</a>'
                     )
                 )
-
             else:
+                # Locked levels are decorative only and cannot be pressed.
                 hotspot_parts.append(
                     (
                         f'<div '
-                        f'class="map-level-hotspot '
-                        f'map-level-{level_number} '
-                        f'locked" '
-                        f'title="Level '
-                        f'{level_number} is locked">'
+                        f'class="map-level-hotspot locked '
+                        f'map-level-{level_number}" '
+                        f'title="Complete Easy mode of Level '
+                        f'{level_number - 1} to unlock">'
                         f'</div>'
                     )
                 )
 
-            status = (
-                "UNLOCKED"
-                if unlocked
-                else "LOCKED"
-            )
-
-            badge_parts.append(
-                (
-                    f'<div '
-                    f'class="map-level-badge '
-                    f'badge-{level_number}">'
-                    f'L{level_number}: '
-                    f'{stars}/9 ★ · '
-                    f'{status}'
-                    f'</div>'
-                )
-            )
-
         map_html = (
             '<div class="progress-map-wrapper">'
-            f'<img src="{map_uri}" '
-            f'alt="School Progress Map">'
-            + "".join(
-                hotspot_parts
-            )
-            + "".join(
-                badge_parts
-            )
-            + (
-                f'<div class="map-progress-pill">'
-                f'TOTAL: {total_stars()} / 45 ★'
-                f'</div>'
-            )
+            f'<img src="{map_uri}" alt="School Progress Map">'
+            + "".join(hotspot_parts)
             + "</div>"
         )
 
@@ -2489,8 +3301,7 @@ def render_map():
                 'PROGRESS MAP IMAGE MISSING'
                 '</div>'
                 '<p>'
-                'Save your illustrated map beside '
-                'main.py using the exact name '
+                'Save your map beside main.py using the exact name '
                 '<b>progress_map.png</b>.'
                 '</p>'
                 '</div>'
@@ -2498,55 +3309,31 @@ def render_map():
             unsafe_allow_html=True,
         )
 
-        columns = st.columns(
-            len(LEVELS)
-        )
+        columns = st.columns(len(LEVELS))
 
-        for level_index, column in enumerate(
-            columns
-        ):
-            unlocked = level_unlocked(
-                level_index
-            )
-
-            stars = level_star_total(
-                level_index
-            )
+        for level_index, column in enumerate(columns):
+            unlocked = level_unlocked(level_index)
 
             with column:
                 st.markdown(
                     (
                         '<div class="comic-panel" '
-                        f'style="text-align:center; '
-                        f'opacity:'
+                        f'style="text-align:center;opacity:'
                         f'{1 if unlocked else 0.5};">'
-                        f'<h2>'
-                        f'LEVEL {level_index + 1}'
-                        f'</h2>'
-                        f'<p>'
-                        f'{LEVELS[level_index]["title"]}'
-                        f'</p>'
-                        f'<p>'
-                        f'{stars} / 9 ★'
-                        f'</p>'
-                        f'</div>'
+                        f'<h2>LEVEL {level_index + 1}</h2>'
+                        f'<p>{LEVELS[level_index]["title"]}</p>'
+                        '</div>'
                     ),
                     unsafe_allow_html=True,
                 )
 
                 if st.button(
                     f"OPEN LEVEL {level_index + 1}",
-                    key=(
-                        f"fallback_level_"
-                        f"{level_index}"
-                    ),
+                    key=f"fallback_level_{level_index}",
                     use_container_width=True,
                     disabled=not unlocked,
                 ):
-                    navigate(
-                        "difficulty",
-                        level_index,
-                    )
+                    navigate("difficulty", level_index)
 
     if st.button(
         "BACK HOME",
@@ -2626,6 +3413,18 @@ if hasattr(
         width="small",
     )
     def decision_popup(decision):
+        popup_image = image_path_for_card(
+            st.session_state.selected_level,
+            st.session_state.difficulty,
+            decision["trigger"],
+        )
+
+        if popup_image is not None:
+            st.image(
+                str(popup_image),
+                use_container_width=True,
+            )
+
         st.markdown(
             (
                 '<div class="popup-question">'
@@ -2686,6 +3485,179 @@ else:
         )
 
 
+
+if hasattr(st, "fragment"):
+
+    @st.fragment(run_every="250ms")
+    def poll_custom_puzzle_result():
+        """
+        Check whether the custom drag-and-drop iframe submitted a result.
+        This avoids blocked iframe navigation and opens the result page
+        automatically after DONE is pressed.
+        """
+
+        storage_key_json = json.dumps(
+            PUZZLE_RESULT_STORAGE_KEY
+        )
+
+        pending_result = streamlit_js_eval(
+            js_expressions=(
+                "window.localStorage.getItem("
+                f"{storage_key_json}"
+                ")"
+            ),
+            want_output=True,
+            key="poll_custom_puzzle_result",
+        )
+
+        navigation_key_json = json.dumps(
+            PUZZLE_NAV_STORAGE_KEY
+        )
+
+        pending_navigation = streamlit_js_eval(
+            js_expressions=(
+                "window.localStorage.getItem("
+                f"{navigation_key_json}"
+                ")"
+            ),
+            want_output=True,
+            key="poll_custom_puzzle_navigation",
+        )
+
+        if pending_navigation:
+            try:
+                navigation_data = json.loads(
+                    pending_navigation
+                )
+
+                navigation_attempt_id = str(
+                    navigation_data.get(
+                        "attempt_id",
+                        "",
+                    )
+                )
+
+                current_attempt_id = str(
+                    st.session_state.get(
+                        "custom_attempt_id",
+                        "",
+                    )
+                )
+
+                if (
+                    not navigation_attempt_id
+                    or navigation_attempt_id != current_attempt_id
+                ):
+                    streamlit_js_eval(
+                        js_expressions=(
+                            "window.localStorage.removeItem("
+                            f"{navigation_key_json}"
+                            "); true"
+                        ),
+                        want_output=False,
+                        key=(
+                            "clear_stale_custom_puzzle_navigation_"
+                            f"{int(time.time())}"
+                        ),
+                    )
+                    return
+
+                target_screen = str(
+                    navigation_data.get(
+                        "screen",
+                        "scenario",
+                    )
+                )
+
+                target_level = int(
+                    navigation_data.get(
+                        "level",
+                        st.session_state.selected_level,
+                    )
+                )
+
+                streamlit_js_eval(
+                    js_expressions=(
+                        "window.localStorage.removeItem("
+                        f"{navigation_key_json}"
+                        "); true"
+                    ),
+                    want_output=False,
+                    key=(
+                        "clear_custom_puzzle_navigation_"
+                        f"{int(time.time())}"
+                    ),
+                )
+
+                navigate(
+                    target_screen,
+                    target_level,
+                )
+
+            except (
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+            ):
+                streamlit_js_eval(
+                    js_expressions=(
+                        "window.localStorage.removeItem("
+                        f"{navigation_key_json}"
+                        "); true"
+                    ),
+                    want_output=False,
+                    key=(
+                        "clear_bad_custom_puzzle_navigation_"
+                        f"{int(time.time())}"
+                    ),
+                )
+
+        if pending_result:
+            try:
+                payload = json.loads(
+                    pending_result
+                )
+
+                streamlit_js_eval(
+                    js_expressions=(
+                        "window.localStorage.removeItem("
+                        f"{storage_key_json}"
+                        "); true"
+                    ),
+                    want_output=False,
+                    key="clear_custom_puzzle_result_after_submit",
+                )
+
+                submit_custom_result(
+                    payload
+                )
+
+            except (
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+            ):
+                streamlit_js_eval(
+                    js_expressions=(
+                        "window.localStorage.removeItem("
+                        f"{storage_key_json}"
+                        "); true"
+                    ),
+                    want_output=False,
+                    key=(
+                        "clear_bad_custom_puzzle_result_"
+                        f"{int(time.time())}"
+                    ),
+                )
+
+
+else:
+
+    def poll_custom_puzzle_result():
+        pass
+
+
+
 screen = st.session_state.screen
 if screen == "home":
     render_home()
@@ -2697,11 +3669,23 @@ elif screen == "map":
 
 
 elif screen == "difficulty":
-    show_top_bar()
+    level_index = st.session_state.selected_level
 
-    level_index = (
-        st.session_state.selected_level
-    )
+    # Block users from opening a locked level by manually changing the URL.
+    if not level_unlocked(level_index):
+        st.warning(
+            "This level is locked. Complete Easy mode of the previous level first."
+        )
+
+        if st.button(
+            "BACK TO MAP",
+            use_container_width=True,
+        ):
+            navigate("map")
+
+        st.stop()
+
+    show_top_bar()
 
     level = LEVELS[
         level_index
@@ -2902,15 +3886,13 @@ elif screen == "scenario":
 
 
 elif screen == "puzzle":
+    # Check for DONE or BACK commands before rendering the puzzle.
+    # Do not clear Local Storage here because DONE reloads this page first.
+    poll_custom_puzzle_result()
     show_top_bar()
 
-    level_index = (
-        st.session_state.selected_level
-    )
-
-    level = LEVELS[
-        level_index
-    ]
+    level_index = st.session_state.selected_level
+    level = LEVELS[level_index]
 
     st.markdown(
         (
@@ -2918,203 +3900,17 @@ elif screen == "puzzle":
             '<div class="comic-label">'
             'ARRANGE THE STORY'
             '</div>'
-            f'<h2>'
-            f'{level["title"]}'
-            f'</h2>'
+            f'<h2>{level["title"]}</h2>'
             '<p>'
-            'Drag one card into each '
-            'of the six slots.'
+            'Drag each picture into the correct slot. '
+            'Decision questions appear when selected pictures are placed.'
             '</p>'
             '</div>'
         ),
         unsafe_allow_html=True,
     )
 
-    difficulty_column, moves_column, timer_column = (
-        st.columns(3)
-    )
-
-    with difficulty_column:
-        st.markdown(
-            (
-                '<div class="stat-box">'
-                '<div>DIFFICULTY</div>'
-                f'<span>'
-                f'{st.session_state.difficulty}'
-                f'</span>'
-                '</div>'
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with moves_column:
-        st.markdown(
-            (
-                '<div class="stat-box">'
-                '<div>MOVES</div>'
-                f'<span>'
-                f'{st.session_state.moves}'
-                f'</span>'
-                '</div>'
-            ),
-            unsafe_allow_html=True,
-        )
-
-    with timer_column:
-        live_timer()
-
-    new_layout = sort_items(
-        st.session_state.layout,
-        direction="horizontal",
-        multi_containers=True,
-        key=(
-            f"story_sort_"
-            f"{st.session_state.sort_key}"
-        ),
-    )
-
-    corrected_layout, corrected = (
-        limit_one_card_per_slot(
-            new_layout
-        )
-    )
-
-    if corrected:
-        st.session_state.layout = (
-            copy.deepcopy(
-                corrected_layout
-            )
-        )
-
-        st.session_state.previous_layout = (
-            copy.deepcopy(
-                corrected_layout
-            )
-        )
-
-        st.session_state.previous_sequence = (
-            sequence_from_layout(
-                corrected_layout
-            )
-        )
-
-        st.session_state.sort_key += 1
-        st.session_state.slot_warning = True
-
-        save_progress()
-        st.rerun()
-
-    old_sequence = (
-        st.session_state.previous_sequence.copy()
-    )
-
-    new_sequence = (
-        sequence_from_layout(
-            corrected_layout
-        )
-    )
-
-    if (
-        corrected_layout
-        != st.session_state.previous_layout
-    ):
-        st.session_state.moves += 1
-
-        decision_id = detect_new_decision(
-            level,
-            old_sequence,
-            new_sequence,
-        )
-
-        if decision_id is not None:
-            st.session_state.pending_decision = (
-                decision_id
-            )
-
-        st.session_state.previous_layout = (
-            copy.deepcopy(
-                corrected_layout
-            )
-        )
-
-        st.session_state.previous_sequence = (
-            new_sequence.copy()
-        )
-
-    st.session_state.layout = (
-        copy.deepcopy(
-            corrected_layout
-        )
-    )
-
-    save_progress()
-
-    if st.session_state.slot_warning:
-        st.warning(
-            "Only one card is allowed in each slot. "
-            "The extra card returned to the tray."
-        )
-
-        st.session_state.slot_warning = False
-
-    back_column, restart_column, done_column = (
-        st.columns(3)
-    )
-
-    with back_column:
-        if st.button(
-            "BACK",
-            use_container_width=True,
-        ):
-            navigate(
-                "scenario",
-                level_index,
-            )
-
-    with restart_column:
-        if st.button(
-            "RESTART",
-            use_container_width=True,
-        ):
-            start_puzzle()
-
-    with done_column:
-        if st.button(
-            "DONE",
-            use_container_width=True,
-        ):
-            if not slots_complete(
-                corrected_layout
-            ):
-                st.warning(
-                    "Place exactly one card "
-                    "in every slot."
-                )
-
-            elif not decisions_complete(
-                level
-            ):
-                st.warning(
-                    "Answer all decision "
-                    "questions first."
-                )
-
-            else:
-                evaluate_level()
-
-    if (
-        st.session_state.pending_decision
-        is not None
-    ):
-        decision = get_decision(
-            level,
-            st.session_state.pending_decision,
-        )
-
-        if decision is not None:
-            decision_popup(
-                decision
-            )
+    render_custom_image_puzzle()
 
 
 elif screen == "result":

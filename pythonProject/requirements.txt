@@ -1,3 +1,2 @@
 streamlit>=1.32
 streamlit-sortables>=0.2.0
-streamlit-js-eval
