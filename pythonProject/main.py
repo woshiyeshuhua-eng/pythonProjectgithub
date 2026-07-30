@@ -2347,8 +2347,10 @@ if query_level is not None:
     except ValueError:
         pass
 
-
-    st.rerun()
+    # Do not rerun here. The level number remains in the URL, so an
+    # unconditional st.rerun() would create an endless rerun loop whenever
+    # a player clicks a numbered level on the progress map. Continue directly
+    # to render the selected level's difficulty page instead.
 
 
 CSS = """
