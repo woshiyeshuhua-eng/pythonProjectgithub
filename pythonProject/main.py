@@ -1270,6 +1270,7 @@ def start_puzzle():
     st.session_state.custom_attempt_id = (
         f"{level_index}-{difficulty}-{time.time_ns()}"
     )
+    st.session_state.selected_picture_card = None
 
     result_key_json = json.dumps(
         PUZZLE_RESULT_STORAGE_KEY
@@ -1821,6 +1822,7 @@ def submit_custom_result(payload):
     }
     st.session_state.show_hint = False
     st.session_state.custom_attempt_id = ""
+    st.session_state.selected_picture_card = None
     st.session_state.screen = "result"
 
     st.query_params.clear()
@@ -1883,6 +1885,12 @@ def normalise_picture_layout(layout):
 
 
 def render_custom_image_puzzle():
+    """Reliable native Streamlit picture-placement game.
+
+    The player selects a picture and then presses PLACE HERE in a slot.
+    This avoids iframe drag/drop restrictions on Streamlit Community Cloud.
+    """
+
     level_index = st.session_state.selected_level
     difficulty = st.session_state.difficulty
     level = LEVELS[level_index]
@@ -1893,60 +1901,194 @@ def render_custom_image_puzzle():
 
     st.session_state.layout = normalise_picture_layout(st.session_state.layout)
     if st.session_state.previous_layout is not None:
-        st.session_state.previous_layout = normalise_picture_layout(st.session_state.previous_layout)
+        st.session_state.previous_layout = normalise_picture_layout(
+            st.session_state.previous_layout
+        )
 
-    if not st.session_state.get("custom_attempt_id"):
-        st.session_state.custom_attempt_id = f"{level_index}-{difficulty}-{time.time_ns()}"
+    if "selected_picture_card" not in st.session_state:
+        st.session_state.selected_picture_card = None
 
-    all_ids = []
-    for container in st.session_state.layout:
-        all_ids.extend(container.get("items", []))
+    def card_image(card_id):
+        return image_path_for_card(level_index, difficulty, card_id)
 
-    cards = []
-    for card_id in dict.fromkeys(all_ids):
-        image_path = image_path_for_card(level_index, difficulty, card_id)
-        cards.append({
-            "id": card_id,
-            "label": level["cards"].get(card_id, card_id),
-            "image": encode_image_for_html(image_path),
-        })
+    def move_selected_to(target_index):
+        selected = st.session_state.get("selected_picture_card")
+        if not selected:
+            st.warning("Select one picture first.")
+            return
 
-    component_value = picture_sorter(
-        layout=st.session_state.layout,
-        cards=cards,
-        key=f"picture_sorter_{st.session_state.custom_attempt_id}",
-        default=None,
-    )
+        layout = copy.deepcopy(st.session_state.layout)
+        old_sequence = sequence_from_layout(layout)
 
-    if isinstance(component_value, dict):
-        returned_layout = normalise_picture_layout(component_value.get("layout"))
-        revision = component_value.get("revision")
-        if returned_layout is not None and revision != st.session_state.get("picture_component_revision"):
-            old_sequence = sequence_from_layout(st.session_state.layout)
-            corrected_layout, slot_changed = limit_one_card_per_slot(returned_layout)
-            new_sequence = sequence_from_layout(corrected_layout)
-            st.session_state.picture_component_revision = revision
-            st.session_state.moves += 1
-            new_decision = detect_new_decision(level, old_sequence, new_sequence)
-            st.session_state.layout = copy.deepcopy(corrected_layout)
-            st.session_state.previous_layout = copy.deepcopy(corrected_layout)
-            st.session_state.previous_sequence = list(new_sequence)
-            if new_decision is not None and st.session_state.pending_decision is None:
-                st.session_state.pending_decision = new_decision
-            if slot_changed:
-                st.session_state.slot_warning = True
-            save_progress()
+        source_index = None
+        for index, container in enumerate(layout):
+            if selected in container.get("items", []):
+                source_index = index
+                break
+
+        if source_index is None:
+            st.session_state.selected_picture_card = None
+            st.warning("That picture is no longer available. Select it again.")
+            return
+
+        if source_index == target_index:
+            st.session_state.selected_picture_card = None
             st.rerun()
 
-    if st.session_state.get("slot_warning"):
-        st.warning("Only one picture can be placed in each slot. The extra picture was returned to the card tray.")
-        st.session_state.slot_warning = False
+        # A slot accepts only one picture. Return its old picture to the tray.
+        if target_index > 0 and layout[target_index].get("items"):
+            old_card = layout[target_index]["items"][0]
+            if old_card != selected and old_card not in layout[0]["items"]:
+                layout[0]["items"].append(old_card)
+            layout[target_index]["items"] = []
 
+        layout[source_index]["items"] = [
+            item for item in layout[source_index].get("items", [])
+            if item != selected
+        ]
+
+        if selected not in layout[target_index]["items"]:
+            layout[target_index]["items"].append(selected)
+
+        new_sequence = sequence_from_layout(layout)
+        new_decision = detect_new_decision(level, old_sequence, new_sequence)
+
+        st.session_state.layout = layout
+        st.session_state.previous_layout = copy.deepcopy(layout)
+        st.session_state.previous_sequence = list(new_sequence)
+        st.session_state.moves += 1
+        st.session_state.selected_picture_card = None
+
+        if new_decision is not None and st.session_state.pending_decision is None:
+            st.session_state.pending_decision = new_decision
+
+        save_progress()
+        st.rerun()
+
+    # ------------------------- CARD TRAY -------------------------
+    st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
+    st.markdown("### CARD TRAY")
+    st.caption("Press SELECT under a picture, then press PLACE HERE in a slot.")
+
+    tray_ids = list(st.session_state.layout[0].get("items", []))
+    if not tray_ids:
+        st.success("All pictures have been placed into slots.")
+    else:
+        for row_start in range(0, len(tray_ids), 4):
+            row_ids = tray_ids[row_start:row_start + 4]
+            columns = st.columns(4)
+            for column_index, card_id in enumerate(row_ids):
+                with columns[column_index]:
+                    image_path = card_image(card_id)
+                    if image_path is not None:
+                        st.image(str(image_path), use_container_width=True)
+                    else:
+                        st.info(f"Image missing: {card_id}")
+
+                    st.markdown(
+                        f"<div style='text-align:center;font-weight:700;min-height:54px;'>"
+                        f"{level['cards'].get(card_id, card_id)}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    selected = st.session_state.selected_picture_card == card_id
+                    label = "SELECTED ✓" if selected else "SELECT"
+                    if st.button(
+                        label,
+                        key=f"select_tray_{card_id}_{st.session_state.custom_attempt_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_picture_card = (
+                            None if selected else card_id
+                        )
+                        st.rerun()
+
+    selected_card = st.session_state.get("selected_picture_card")
+    if selected_card:
+        st.success(
+            "Selected: "
+            + level["cards"].get(selected_card, selected_card)
+            + ". Now press PLACE HERE in the chosen slot."
+        )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # --------------------------- SLOTS ---------------------------
+    slot_total = len(st.session_state.layout) - 1
+    for row_start in range(1, slot_total + 1, 3):
+        slot_columns = st.columns(3)
+        for offset in range(3):
+            slot_index = row_start + offset
+            if slot_index > slot_total:
+                continue
+
+            with slot_columns[offset]:
+                st.markdown(
+                    f"<div class='comic-panel'><h3>SLOT {slot_index}</h3>",
+                    unsafe_allow_html=True,
+                )
+
+                slot_items = st.session_state.layout[slot_index].get("items", [])
+                if slot_items:
+                    card_id = slot_items[0]
+                    image_path = card_image(card_id)
+                    if image_path is not None:
+                        st.image(str(image_path), use_container_width=True)
+                    else:
+                        st.info(f"Image missing: {card_id}")
+
+                    st.markdown(
+                        f"<div style='text-align:center;font-weight:700;min-height:54px;'>"
+                        f"{level['cards'].get(card_id, card_id)}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                    if st.button(
+                        "SELECT THIS PICTURE",
+                        key=f"select_slot_{slot_index}_{card_id}_{st.session_state.custom_attempt_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_picture_card = card_id
+                        st.rerun()
+
+                    if st.button(
+                        "RETURN TO TRAY",
+                        key=f"return_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_picture_card = card_id
+                        move_selected_to(0)
+                else:
+                    st.markdown(
+                        "<div style='height:220px;display:flex;align-items:center;"
+                        "justify-content:center;border:4px dashed #202124;"
+                        "border-radius:14px;font-weight:900;'>EMPTY SLOT</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                if st.button(
+                    "PLACE HERE",
+                    key=f"place_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                    use_container_width=True,
+                    disabled=not bool(st.session_state.get("selected_picture_card")),
+                ):
+                    move_selected_to(slot_index)
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    # ---------------------- STATUS / QUESTIONS -------------------
     status_1, status_2, status_3 = st.columns(3)
     with status_1:
-        st.markdown('<div class="stat-box"><div>DIFFICULTY</div>' f'<span>{difficulty}</span></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="stat-box"><div>DIFFICULTY</div>'
+            f'<span>{difficulty}</span></div>',
+            unsafe_allow_html=True,
+        )
     with status_2:
-        st.markdown('<div class="stat-box"><div>MOVES</div>' f'<span>{st.session_state.moves}</span></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="stat-box"><div>MOVES</div>'
+            f'<span>{st.session_state.moves}</span></div>',
+            unsafe_allow_html=True,
+        )
     with status_3:
         live_timer()
 
@@ -1954,9 +2096,23 @@ def render_custom_image_puzzle():
     if pending_id:
         decision = get_decision(level, pending_id)
         if decision is not None:
-            st.markdown('<div class="popup-question"><h3>DECISION QUESTION</h3>' f'<p>{decision["question"]}</p></div>', unsafe_allow_html=True)
-            selected_answer = st.radio(decision["question"], decision["options"], index=None, key=f"decision_answer_{pending_id}", label_visibility="collapsed")
-            if st.button("CONFIRM ANSWER", key=f"confirm_decision_{pending_id}", use_container_width=True):
+            st.markdown(
+                '<div class="popup-question"><h3>DECISION QUESTION</h3>'
+                f'<p>{decision["question"]}</p></div>',
+                unsafe_allow_html=True,
+            )
+            selected_answer = st.radio(
+                decision["question"],
+                decision["options"],
+                index=None,
+                key=f"decision_answer_{pending_id}",
+                label_visibility="collapsed",
+            )
+            if st.button(
+                "CONFIRM ANSWER",
+                key=f"confirm_decision_{pending_id}",
+                use_container_width=True,
+            ):
                 if selected_answer is None:
                     st.warning("Choose one answer first.")
                 else:
@@ -1965,6 +2121,7 @@ def render_custom_image_puzzle():
                     save_progress()
                     st.rerun()
 
+    # -------------------------- CONTROLS -------------------------
     control_back, control_restart, control_done = st.columns(3)
     with control_back:
         if st.button("BACK", key="puzzle_back_to_map", use_container_width=True):
@@ -1975,12 +2132,14 @@ def render_custom_image_puzzle():
             st.session_state.pending_decision = None
             st.session_state.decision_answers = {}
             st.session_state.custom_attempt_id = ""
-            st.session_state.picture_component_revision = None
+            st.session_state.selected_picture_card = None
             navigate("map")
+
     with control_restart:
         if st.button("RESTART", key="puzzle_restart", use_container_width=True):
-            st.session_state.picture_component_revision = None
+            st.session_state.selected_picture_card = None
             start_puzzle()
+
     with control_done:
         if st.button("DONE", key="puzzle_done", use_container_width=True):
             if st.session_state.pending_decision is not None:
@@ -1988,13 +2147,17 @@ def render_custom_image_puzzle():
             elif not slots_complete(st.session_state.layout):
                 st.warning("Place one picture in every slot.")
             elif not decisions_complete(level):
-                unanswered = [d for d in decisions_for(level, difficulty) if d["id"] not in st.session_state.decision_answers]
+                unanswered = [
+                    d for d in decisions_for(level, difficulty)
+                    if d["id"] not in st.session_state.decision_answers
+                ]
                 if unanswered:
                     st.session_state.pending_decision = unanswered[0]["id"]
                     st.warning("Answer all decision questions before pressing DONE.")
                     st.rerun()
             else:
                 evaluate_level()
+
 
 browser_loaded = st.session_state.get(
     "browser_progress_loaded",
