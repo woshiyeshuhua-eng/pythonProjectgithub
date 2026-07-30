@@ -10,7 +10,6 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
-from streamlit_sortables import sort_items
 
 
 st.set_page_config(
@@ -811,6 +810,7 @@ def initialise_state(saved_progress):
         "browser_action_revision": 0,
         "attempt_restored": False,
         "custom_attempt_id": "",
+        "picture_component_revision": None,
     }
 
     for key, value in defaults.items():
@@ -1242,15 +1242,7 @@ def start_puzzle():
     layout = [
         {
             "header": "CARD TRAY",
-            "items": [
-                card_text(
-                    level,
-                    card_id,
-                    level_index,
-                    difficulty,
-                )
-                for card_id in card_ids
-            ],
+            "items": list(card_ids),
         }
     ]
 
@@ -1843,14 +1835,54 @@ def submit_custom_result(payload):
     st.rerun()
 
 
+
+# -----------------------------------------------------------------------------
+# Built-in picture drag-and-drop component
+# -----------------------------------------------------------------------------
+COMPONENT_DIR = BASE_DIR / ".first_aid_picture_sorter"
+COMPONENT_DIR.mkdir(exist_ok=True)
+COMPONENT_INDEX = COMPONENT_DIR / "index.html"
+
+COMPONENT_INDEX.write_text(
+    '''<!doctype html>
+<html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:10px;font-family:Arial,sans-serif;background:transparent;color:#202124}
+.shell{background:#fffaf0;border:5px solid #202124;border-radius:18px;padding:14px;box-shadow:8px 8px 0 #202124}
+.tray,.slot-body{border:4px dashed #202124;border-radius:14px;background:#eaf7ff;min-height:190px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.slot{border:4px dashed #202124;border-radius:14px;background:#f5f5f5;padding:8px;min-height:220px}.slot-title{font-weight:900;margin-bottom:7px}.slot-body{border:0;background:transparent;min-height:170px;align-items:center;justify-content:center;padding:0}
+.card{width:160px;max-width:100%;background:white;border:4px solid #202124;border-radius:12px;padding:7px;box-shadow:4px 4px 0 #202124;cursor:grab;user-select:none}.card img{width:100%;height:130px;object-fit:contain;display:block;border-radius:8px}.label{font-size:12px;font-weight:700;text-align:center;line-height:1.2;margin-top:6px}.missing{height:130px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;font-weight:900}.dragover{background:#fff0ae!important}
+@media(max-width:780px){.slots{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head><body><div id="root"></div><script>
+let args={};let layout=[];let dragged=null;
+function post(type,extra){window.parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},extra||{}),'*')}
+function send(value){post('streamlit:setComponentValue',{value:value})}
+function setHeight(){post('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+20})}
+function info(id){return (args.cards||[]).find(x=>x.id===id)||{id:id,label:id,image:''}}
+function cardNode(id){const c=info(id),n=document.createElement('div');n.className='card';n.draggable=true;n.dataset.id=id;if(c.image){const im=document.createElement('img');im.src=c.image;im.alt=c.label;n.appendChild(im)}else{const m=document.createElement('div');m.className='missing';m.textContent=id+' image missing';n.appendChild(m)}const l=document.createElement('div');l.className='label';l.textContent=c.label;n.appendChild(l);n.addEventListener('dragstart',e=>{dragged=id;e.dataTransfer.setData('text/plain',id)});n.addEventListener('dragend',()=>{dragged=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});return n}
+function target(el,index){el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('dragover')});el.addEventListener('dragleave',()=>el.classList.remove('dragover'));el.addEventListener('drop',e=>{e.preventDefault();el.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain')||dragged;if(!id)return;let from=-1;layout.forEach((c,i)=>{if(c.items.includes(id))from=i});if(from<0)return;if(index>0&&layout[index].items.length&&!layout[index].items.includes(id)){layout[0].items.push(layout[index].items[0]);layout[index].items=[]}layout[from].items=layout[from].items.filter(x=>x!==id);layout[index].items.push(id);render();send({layout:layout,moved_card:id,revision:Date.now()})})}
+function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='CARD TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
+window.addEventListener('message',e=>{if(e.data&&e.data.type==='streamlit:render'){args=e.data.args||{};layout=JSON.parse(JSON.stringify(args.layout||[]));render()}});
+post('streamlit:componentReady',{apiVersion:1});setHeight();
+</script></body></html>''',
+    encoding="utf-8",
+)
+
+picture_sorter = components.declare_component(
+    "first_aid_picture_sorter",
+    path=str(COMPONENT_DIR),
+)
+
+
+def normalise_picture_layout(layout):
+    cleaned = serialisable_layout(layout)
+    if cleaned is None:
+        return None
+    for container in cleaned:
+        container["items"] = [extract_card_id(item) for item in container["items"]]
+    return cleaned
+
+
 def render_custom_image_puzzle():
-    """Render the puzzle using streamlit-sortables instead of an iframe.
-
-    This keeps all navigation and result submission inside Streamlit, so it
-    works locally and on Streamlit Community Cloud without top-frame redirects,
-    hidden forms, browser-storage polling, or temporary fragment URLs.
-    """
-
     level_index = st.session_state.selected_level
     difficulty = st.session_state.difficulty
     level = LEVELS[level_index]
@@ -1859,197 +1891,83 @@ def render_custom_image_puzzle():
         start_puzzle()
         return
 
+    st.session_state.layout = normalise_picture_layout(st.session_state.layout)
+    if st.session_state.previous_layout is not None:
+        st.session_state.previous_layout = normalise_picture_layout(st.session_state.previous_layout)
+
     if not st.session_state.get("custom_attempt_id"):
-        st.session_state.custom_attempt_id = (
-            f"{level_index}-{difficulty}-{time.time_ns()}"
-        )
+        st.session_state.custom_attempt_id = f"{level_index}-{difficulty}-{time.time_ns()}"
 
-    sortable_style = """
-    .sortable-component {
-        font-family: Arial, sans-serif;
-    }
+    all_ids = []
+    for container in st.session_state.layout:
+        all_ids.extend(container.get("items", []))
 
-    .sortable-container {
-        background: #fffaf0 !important;
-        border: 4px dashed #202124 !important;
-        border-radius: 14px !important;
-        padding: 12px !important;
-        margin-bottom: 14px !important;
-        min-height: 205px !important;
-    }
+    cards = []
+    for card_id in dict.fromkeys(all_ids):
+        image_path = image_path_for_card(level_index, difficulty, card_id)
+        cards.append({
+            "id": card_id,
+            "label": level["cards"].get(card_id, card_id),
+            "image": encode_image_for_html(image_path),
+        })
 
-    .sortable-container-header {
-        color: #202124 !important;
-        font-size: 17px !important;
-        font-weight: 900 !important;
-        margin-bottom: 8px !important;
-    }
-
-    .sortable-item {
-        background: white !important;
-        border: 4px solid #202124 !important;
-        border-radius: 12px !important;
-        box-shadow: 4px 4px 0 #202124 !important;
-        padding: 7px !important;
-        margin: 7px !important;
-        width: 175px !important;
-        max-width: 100% !important;
-        color: #202124 !important;
-    }
-
-    .sortable-picture-card {
-        width: 100% !important;
-        color: #202124 !important;
-        font-weight: 700 !important;
-        text-align: center !important;
-    }
-
-    .sortable-picture-card img {
-        width: 150px !important;
-        max-width: 100% !important;
-        height: 150px !important;
-        object-fit: contain !important;
-        display: block !important;
-        margin: auto !important;
-    }
-    """
-
-    returned_layout = sort_items(
-        st.session_state.layout,
-        direction="horizontal",
-        multi_containers=True,
-        custom_style=sortable_style,
-        key=(
-            "first_aid_sortable_"
-            f"{st.session_state.custom_attempt_id}"
-        ),
+    component_value = picture_sorter(
+        layout=st.session_state.layout,
+        cards=cards,
+        key=f"picture_sorter_{st.session_state.custom_attempt_id}",
+        default=None,
     )
 
-    corrected_layout, slot_changed = limit_one_card_per_slot(
-        returned_layout
-    )
+    if isinstance(component_value, dict):
+        returned_layout = normalise_picture_layout(component_value.get("layout"))
+        revision = component_value.get("revision")
+        if returned_layout is not None and revision != st.session_state.get("picture_component_revision"):
+            old_sequence = sequence_from_layout(st.session_state.layout)
+            corrected_layout, slot_changed = limit_one_card_per_slot(returned_layout)
+            new_sequence = sequence_from_layout(corrected_layout)
+            st.session_state.picture_component_revision = revision
+            st.session_state.moves += 1
+            new_decision = detect_new_decision(level, old_sequence, new_sequence)
+            st.session_state.layout = copy.deepcopy(corrected_layout)
+            st.session_state.previous_layout = copy.deepcopy(corrected_layout)
+            st.session_state.previous_sequence = list(new_sequence)
+            if new_decision is not None and st.session_state.pending_decision is None:
+                st.session_state.pending_decision = new_decision
+            if slot_changed:
+                st.session_state.slot_warning = True
+            save_progress()
+            st.rerun()
 
-    old_sequence = list(
-        st.session_state.get(
-            "previous_sequence",
-            [None] * slot_count_for(level_index, difficulty),
-        )
-    )
-    new_sequence = sequence_from_layout(corrected_layout)
-
-    layout_changed = (
-        serialisable_layout(corrected_layout)
-        != serialisable_layout(st.session_state.layout)
-    )
-
-    if layout_changed:
-        changed_positions = sum(
-            old_value != new_value
-            for old_value, new_value in zip(
-                old_sequence,
-                new_sequence,
-            )
-        )
-        st.session_state.moves += max(1, changed_positions)
-
-        new_decision = detect_new_decision(
-            level,
-            old_sequence,
-            new_sequence,
-        )
-
-        st.session_state.layout = copy.deepcopy(corrected_layout)
-        st.session_state.previous_layout = copy.deepcopy(corrected_layout)
-        st.session_state.previous_sequence = list(new_sequence)
-
-        if (
-            new_decision is not None
-            and st.session_state.pending_decision is None
-        ):
-            st.session_state.pending_decision = new_decision
-
-        save_progress()
-
-    if slot_changed:
-        st.warning(
-            "Only one picture can be placed in each slot. "
-            "The extra picture was returned to the card tray."
-        )
+    if st.session_state.get("slot_warning"):
+        st.warning("Only one picture can be placed in each slot. The extra picture was returned to the card tray.")
+        st.session_state.slot_warning = False
 
     status_1, status_2, status_3 = st.columns(3)
-
     with status_1:
-        st.markdown(
-            (
-                '<div class="stat-box">'
-                '<div>DIFFICULTY</div>'
-                f'<span>{difficulty}</span>'
-                '</div>'
-            ),
-            unsafe_allow_html=True,
-        )
-
+        st.markdown('<div class="stat-box"><div>DIFFICULTY</div>' f'<span>{difficulty}</span></div>', unsafe_allow_html=True)
     with status_2:
-        st.markdown(
-            (
-                '<div class="stat-box">'
-                '<div>MOVES</div>'
-                f'<span>{st.session_state.moves}</span>'
-                '</div>'
-            ),
-            unsafe_allow_html=True,
-        )
-
+        st.markdown('<div class="stat-box"><div>MOVES</div>' f'<span>{st.session_state.moves}</span></div>', unsafe_allow_html=True)
     with status_3:
         live_timer()
 
     pending_id = st.session_state.pending_decision
-
     if pending_id:
         decision = get_decision(level, pending_id)
-
         if decision is not None:
-            st.markdown(
-                (
-                    '<div class="popup-question">'
-                    '<h3>DECISION QUESTION</h3>'
-                    f'<p>{decision["question"]}</p>'
-                    '</div>'
-                ),
-                unsafe_allow_html=True,
-            )
-
-            selected_answer = st.radio(
-                decision["question"],
-                decision["options"],
-                index=None,
-                key=f"decision_answer_{pending_id}",
-                label_visibility="collapsed",
-            )
-
-            if st.button(
-                "CONFIRM ANSWER",
-                key=f"confirm_decision_{pending_id}",
-                use_container_width=True,
-            ):
+            st.markdown('<div class="popup-question"><h3>DECISION QUESTION</h3>' f'<p>{decision["question"]}</p></div>', unsafe_allow_html=True)
+            selected_answer = st.radio(decision["question"], decision["options"], index=None, key=f"decision_answer_{pending_id}", label_visibility="collapsed")
+            if st.button("CONFIRM ANSWER", key=f"confirm_decision_{pending_id}", use_container_width=True):
                 if selected_answer is None:
                     st.warning("Choose one answer first.")
                 else:
-                    st.session_state.decision_answers[pending_id] = (
-                        selected_answer
-                    )
+                    st.session_state.decision_answers[pending_id] = selected_answer
                     st.session_state.pending_decision = None
                     save_progress()
                     st.rerun()
 
     control_back, control_restart, control_done = st.columns(3)
-
     with control_back:
-        if st.button(
-            "BACK",
-            key="puzzle_back_to_map",
-            use_container_width=True,
-        ):
+        if st.button("BACK", key="puzzle_back_to_map", use_container_width=True):
             st.session_state.layout = None
             st.session_state.previous_layout = None
             st.session_state.previous_sequence = [None] * 6
@@ -2057,41 +1975,23 @@ def render_custom_image_puzzle():
             st.session_state.pending_decision = None
             st.session_state.decision_answers = {}
             st.session_state.custom_attempt_id = ""
+            st.session_state.picture_component_revision = None
             navigate("map")
-
     with control_restart:
-        if st.button(
-            "RESTART",
-            key="puzzle_restart",
-            use_container_width=True,
-        ):
+        if st.button("RESTART", key="puzzle_restart", use_container_width=True):
+            st.session_state.picture_component_revision = None
             start_puzzle()
-
     with control_done:
-        if st.button(
-            "DONE",
-            key="puzzle_done",
-            use_container_width=True,
-        ):
+        if st.button("DONE", key="puzzle_done", use_container_width=True):
             if st.session_state.pending_decision is not None:
-                st.warning(
-                    "Confirm the current popup answer before pressing DONE."
-                )
+                st.warning("Confirm the current popup answer before pressing DONE.")
             elif not slots_complete(st.session_state.layout):
                 st.warning("Place one picture in every slot.")
             elif not decisions_complete(level):
-                unanswered = [
-                    decision
-                    for decision in decisions_for(level, difficulty)
-                    if decision["id"]
-                    not in st.session_state.decision_answers
-                ]
-
+                unanswered = [d for d in decisions_for(level, difficulty) if d["id"] not in st.session_state.decision_answers]
                 if unanswered:
                     st.session_state.pending_decision = unanswered[0]["id"]
-                    st.warning(
-                        "Answer all decision questions before pressing DONE."
-                    )
+                    st.warning("Answer all decision questions before pressing DONE.")
                     st.rerun()
             else:
                 evaluate_level()
