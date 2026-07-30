@@ -1884,6 +1884,43 @@ def normalise_picture_layout(layout):
     return cleaned
 
 
+@st.dialog("DECISION QUESTION", width="medium")
+def show_decision_question_dialog(level, pending_id):
+    """Display the current decision question as a centred overlay popup."""
+
+    decision = get_decision(level, pending_id)
+    if decision is None:
+        st.session_state.pending_decision = None
+        return
+
+    st.markdown(
+        f"<div style='font-size:1.2rem;font-weight:800;margin-bottom:12px;'>"
+        f"{decision['question']}</div>",
+        unsafe_allow_html=True,
+    )
+
+    selected_answer = st.radio(
+        "Choose your answer",
+        decision["options"],
+        index=None,
+        key=f"decision_dialog_answer_{pending_id}",
+        label_visibility="collapsed",
+    )
+
+    if st.button(
+        "CONFIRM ANSWER",
+        key=f"confirm_dialog_decision_{pending_id}",
+        use_container_width=True,
+    ):
+        if selected_answer is None:
+            st.warning("Choose one answer first.")
+        else:
+            st.session_state.decision_answers[pending_id] = selected_answer
+            st.session_state.pending_decision = None
+            save_progress()
+            st.rerun()
+
+
 def render_custom_image_puzzle():
     """Reliable native Streamlit picture-placement game.
 
@@ -1910,6 +1947,28 @@ def render_custom_image_puzzle():
 
     def card_image(card_id):
         return image_path_for_card(level_index, difficulty, card_id)
+
+    # ---------------------- STATUS AT THE TOP ---------------------
+    status_1, status_2, status_3 = st.columns(3)
+    with status_1:
+        st.markdown(
+            '<div class="stat-box"><div>DIFFICULTY</div>'
+            f'<span>{difficulty}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with status_2:
+        st.markdown(
+            '<div class="stat-box"><div>MOVES</div>'
+            f'<span>{st.session_state.moves}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with status_3:
+        live_timer()
+
+    # Show the decision question over the game as a centred popup.
+    pending_id = st.session_state.pending_decision
+    if pending_id:
+        show_decision_question_dialog(level, pending_id)
 
     def move_selected_to(target_index):
         selected = st.session_state.get("selected_picture_card")
@@ -1965,161 +2024,124 @@ def render_custom_image_puzzle():
         save_progress()
         st.rerun()
 
-    # ------------------------- CARD TRAY -------------------------
-    st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
-    st.markdown("### CARD TRAY")
-    st.caption("Select a picture, then press PLACE HERE in the slot where you want to put it.")
+    # -------- LEFT CARD TRAY + SMALLER SLOTS ON THE RIGHT -------
+    tray_column, slots_column = st.columns([1.05, 2.95], gap="large")
 
-    tray_ids = list(st.session_state.layout[0].get("items", []))
-    if not tray_ids:
-        st.success("All pictures have been placed into slots.")
-    else:
-        for row_start in range(0, len(tray_ids), 4):
-            row_ids = tray_ids[row_start:row_start + 4]
-            columns = st.columns(4)
-            for column_index, card_id in enumerate(row_ids):
-                with columns[column_index]:
-                    image_path = card_image(card_id)
-                    if image_path is not None:
-                        st.image(str(image_path), width=180)
-                    else:
-                        st.info(f"Image missing: {card_id}")
+    with tray_column:
+        st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
+        st.markdown("### CARD TRAY")
+        st.caption("Press SELECT, then choose PLACE HERE in a slot.")
 
-                    st.markdown(
-                        f"<div style='text-align:center;font-weight:700;min-height:54px;'>"
-                        f"{level['cards'].get(card_id, card_id)}</div>",
-                        unsafe_allow_html=True,
-                    )
+        tray_ids = list(st.session_state.layout[0].get("items", []))
+        if not tray_ids:
+            st.success("All pictures have been placed.")
+        else:
+            # Show the tray vertically on the left side.
+            for card_id in tray_ids:
+                image_path = card_image(card_id)
+                if image_path is not None:
+                    st.image(str(image_path), width=125)
+                else:
+                    st.info(f"Image missing: {card_id}")
 
-                    selected = st.session_state.selected_picture_card == card_id
-                    label = "SELECTED ✓" if selected else "SELECT"
-                    if st.button(
-                        label,
-                        key=f"select_tray_{card_id}_{st.session_state.custom_attempt_id}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.selected_picture_card = (
-                            None if selected else card_id
-                        )
-                        st.rerun()
-
-    selected_card = st.session_state.get("selected_picture_card")
-    if selected_card:
-        st.success(
-            "Selected: "
-            + level["cards"].get(selected_card, selected_card)
-            + ". Now press PLACE HERE in the chosen slot."
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # --------------------------- SLOTS ---------------------------
-    slot_total = len(st.session_state.layout) - 1
-    for row_start in range(1, slot_total + 1, 3):
-        slot_columns = st.columns(3)
-        for offset in range(3):
-            slot_index = row_start + offset
-            if slot_index > slot_total:
-                continue
-
-            with slot_columns[offset]:
                 st.markdown(
-                    f"<div class='comic-panel'><h3>SLOT {slot_index}</h3>",
+                    f"<div style='text-align:center;font-weight:700;"
+                    f"font-size:0.85rem;line-height:1.15;margin-bottom:6px;'>"
+                    f"{level['cards'].get(card_id, card_id)}</div>",
                     unsafe_allow_html=True,
                 )
 
-                slot_items = st.session_state.layout[slot_index].get("items", [])
-                if slot_items:
-                    card_id = slot_items[0]
-                    image_path = card_image(card_id)
-                    if image_path is not None:
-                        st.image(str(image_path), width=170)
-                    else:
-                        st.info(f"Image missing: {card_id}")
-
-                    st.markdown(
-                        f"<div style='text-align:center;font-weight:700;min-height:54px;'>"
-                        f"{level['cards'].get(card_id, card_id)}</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    if st.button(
-                        "SELECT THIS PICTURE",
-                        key=f"select_slot_{slot_index}_{card_id}_{st.session_state.custom_attempt_id}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.selected_picture_card = card_id
-                        st.rerun()
-
-                    if st.button(
-                        "RETURN TO TRAY",
-                        key=f"return_slot_{slot_index}_{st.session_state.custom_attempt_id}",
-                        use_container_width=True,
-                    ):
-                        st.session_state.selected_picture_card = card_id
-                        move_selected_to(0)
-                else:
-                    st.markdown(
-                        "<div style='height:220px;display:flex;align-items:center;"
-                        "justify-content:center;border:4px dashed #202124;"
-                        "border-radius:14px;font-weight:900;'>EMPTY SLOT</div>",
-                        unsafe_allow_html=True,
-                    )
-
+                selected = st.session_state.selected_picture_card == card_id
+                label = "SELECTED ✓" if selected else "SELECT"
                 if st.button(
-                    "PLACE HERE",
-                    key=f"place_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                    label,
+                    key=f"select_tray_{card_id}_{st.session_state.custom_attempt_id}",
                     use_container_width=True,
-                    disabled=not bool(st.session_state.get("selected_picture_card")),
                 ):
-                    move_selected_to(slot_index)
-
-                st.markdown('</div>', unsafe_allow_html=True)
-
-    # ---------------------- STATUS / QUESTIONS -------------------
-    status_1, status_2, status_3 = st.columns(3)
-    with status_1:
-        st.markdown(
-            '<div class="stat-box"><div>DIFFICULTY</div>'
-            f'<span>{difficulty}</span></div>',
-            unsafe_allow_html=True,
-        )
-    with status_2:
-        st.markdown(
-            '<div class="stat-box"><div>MOVES</div>'
-            f'<span>{st.session_state.moves}</span></div>',
-            unsafe_allow_html=True,
-        )
-    with status_3:
-        live_timer()
-
-    pending_id = st.session_state.pending_decision
-    if pending_id:
-        decision = get_decision(level, pending_id)
-        if decision is not None:
-            st.markdown(
-                '<div class="popup-question"><h3>DECISION QUESTION</h3>'
-                f'<p>{decision["question"]}</p></div>',
-                unsafe_allow_html=True,
-            )
-            selected_answer = st.radio(
-                decision["question"],
-                decision["options"],
-                index=None,
-                key=f"decision_answer_{pending_id}",
-                label_visibility="collapsed",
-            )
-            if st.button(
-                "CONFIRM ANSWER",
-                key=f"confirm_decision_{pending_id}",
-                use_container_width=True,
-            ):
-                if selected_answer is None:
-                    st.warning("Choose one answer first.")
-                else:
-                    st.session_state.decision_answers[pending_id] = selected_answer
-                    st.session_state.pending_decision = None
-                    save_progress()
+                    st.session_state.selected_picture_card = (
+                        None if selected else card_id
+                    )
                     st.rerun()
+
+                st.markdown("<hr style='margin:10px 0;'>", unsafe_allow_html=True)
+
+        selected_card = st.session_state.get("selected_picture_card")
+        if selected_card:
+            st.success(
+                "Selected: "
+                + level["cards"].get(selected_card, selected_card)
+                + ". Choose a slot on the right."
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with slots_column:
+        st.markdown("### STORY SLOTS")
+        slot_total = len(st.session_state.layout) - 1
+
+        # Two smaller slot boxes per row.
+        for row_start in range(1, slot_total + 1, 2):
+            slot_columns = st.columns(2, gap="medium")
+            for offset in range(2):
+                slot_index = row_start + offset
+                if slot_index > slot_total:
+                    continue
+
+                with slot_columns[offset]:
+                    st.markdown(
+                        f"<div class='comic-panel' style='padding:14px;margin-bottom:14px;'>"
+                        f"<h3 style='margin:0 0 8px 0;'>SLOT {slot_index}</h3>",
+                        unsafe_allow_html=True,
+                    )
+
+                    slot_items = st.session_state.layout[slot_index].get("items", [])
+                    if slot_items:
+                        card_id = slot_items[0]
+                        image_path = card_image(card_id)
+                        if image_path is not None:
+                            st.image(str(image_path), width=135)
+                        else:
+                            st.info(f"Image missing: {card_id}")
+
+                        st.markdown(
+                            f"<div style='text-align:center;font-weight:700;"
+                            f"font-size:0.85rem;line-height:1.15;min-height:40px;'>"
+                            f"{level['cards'].get(card_id, card_id)}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                        if st.button(
+                            "SELECT PICTURE",
+                            key=f"select_slot_{slot_index}_{card_id}_{st.session_state.custom_attempt_id}",
+                            use_container_width=True,
+                        ):
+                            st.session_state.selected_picture_card = card_id
+                            st.rerun()
+
+                        if st.button(
+                            "RETURN TO TRAY",
+                            key=f"return_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                            use_container_width=True,
+                        ):
+                            st.session_state.selected_picture_card = card_id
+                            move_selected_to(0)
+                    else:
+                        st.markdown(
+                            "<div style='height:135px;display:flex;align-items:center;"
+                            "justify-content:center;border:4px dashed #202124;"
+                            "border-radius:14px;font-weight:900;font-size:0.95rem;'>"
+                            "EMPTY SLOT</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                    if st.button(
+                        "PLACE HERE",
+                        key=f"place_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                        use_container_width=True,
+                        disabled=not bool(st.session_state.get("selected_picture_card")),
+                    ):
+                        move_selected_to(slot_index)
+
+                    st.markdown('</div>', unsafe_allow_html=True)
 
     # -------------------------- CONTROLS -------------------------
     control_back, control_restart, control_done = st.columns(3)
