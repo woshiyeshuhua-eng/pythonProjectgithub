@@ -2354,43 +2354,74 @@ function currentSequence() {{
         }});
 }}
 
-function openParentScreen(screenName, extraParams = {{}}) {{
+function getParentAppUrl() {{
+    /*
+    document.referrer is the main Streamlit page that created this iframe.
+    Using it avoids sending the player to the iframe component URL.
+    */
     try {{
-        const parentUrl = new URL(window.parent.location.href);
-        parentUrl.search = "";
-        parentUrl.searchParams.set("screen", screenName);
-
-        Object.entries(extraParams).forEach(([key, value]) => {{
-            parentUrl.searchParams.set(key, String(value));
-        }});
-
-        window.parent.location.href = parentUrl.toString();
+        if (document.referrer) {{
+            return new URL(document.referrer);
+        }}
     }} catch (error) {{
-        message.textContent = "Unable to open the requested page.";
         console.error(error);
     }}
+
+    return new URL("/", window.location.origin);
+}}
+
+function openParentScreen(screenName, extraParams = {{}}) {{
+    try {{
+        const targetUrl = getParentAppUrl();
+        targetUrl.search = "";
+        targetUrl.searchParams.set("screen", screenName);
+        targetUrl.searchParams.set(
+            "level",
+            Object.prototype.hasOwnProperty.call(extraParams, "level")
+                ? String(extraParams.level)
+                : String({level_index})
+        );
+
+        message.textContent = "Opening page...";
+        window.top.location.href = targetUrl.toString();
+    }} catch (error) {{
+        console.error(error);
+        message.textContent = "Unable to open the requested page.";
+    }}
+}}
+
+function encodePayloadForUrl(payload) {{
+    const jsonText = JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(jsonText);
+    let binary = "";
+
+    bytes.forEach(byte => {{
+        binary += String.fromCharCode(byte);
+    }});
+
+    return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
 }}
 
 function submitToStreamlit(payload) {{
     try {{
-        const jsonText = JSON.stringify(payload);
-        const encodedPayload = btoa(
-            unescape(encodeURIComponent(jsonText))
-        )
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_")
-            .replace(/=+$/g, "");
+        const targetUrl = getParentAppUrl();
+        targetUrl.search = "";
+        targetUrl.searchParams.set("screen", "puzzle");
+        targetUrl.searchParams.set("level", String({level_index}));
+        targetUrl.searchParams.set(
+            "puzzle_submit",
+            encodePayloadForUrl(payload)
+        );
 
         message.textContent = "Checking your answers...";
-
-        openParentScreen("puzzle", {{
-            level: {level_index},
-            puzzle_submit: encodedPayload
-        }});
+        window.top.location.href = targetUrl.toString();
     }} catch (error) {{
-        message.textContent =
-            "Unable to submit the result. Please try again.";
         console.error(error);
+        message.textContent =
+            "Unable to submit the result. Please refresh and try again.";
     }}
 }}
 
