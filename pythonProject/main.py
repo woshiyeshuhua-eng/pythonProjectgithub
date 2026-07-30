@@ -2356,14 +2356,28 @@ function currentSequence() {{
 
 function getParentAppAction() {{
     /*
-    Use the referring Streamlit page as the form destination.
-    We do not access window.top.location because Streamlit component
-    iframes may block that operation on deployed apps.
+    Streamlit components can have a temporary fragment URL as their
+    document.referrer. Submitting to that URL causes the cloud error:
+    "The fragment ... does not exist anymore".
+
+    ancestorOrigins[0] gives the real parent app origin without trying
+    to read the protected parent window location.
     */
+    try {{
+        if (
+            window.location.ancestorOrigins
+            && window.location.ancestorOrigins.length > 0
+        ) {{
+            return window.location.ancestorOrigins[0] + "/";
+        }}
+    }} catch (error) {{
+        console.error(error);
+    }}
+
     try {{
         if (document.referrer) {{
             const referrerUrl = new URL(document.referrer);
-            return referrerUrl.origin + referrerUrl.pathname;
+            return referrerUrl.origin + "/";
         }}
     }} catch (error) {{
         console.error(error);
@@ -2416,8 +2430,8 @@ function encodePayloadForUrl(payload) {{
     }});
 
     return btoa(binary)
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
+        .split("+").join("-")
+        .split("/").join("_")
         .replace(/=+$/g, "");
 }}
 
