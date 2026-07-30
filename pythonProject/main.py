@@ -66,6 +66,21 @@ def browser_storage_key():
     return f"{BROWSER_STORAGE_PREFIX}::{player_id}"
 
 
+def game_query_url(screen_name, level_index=None):
+    """Build an in-app URL without losing the active player profile."""
+
+    query_values = {
+        PLAYER_QUERY_KEY: current_player_id(),
+        "player_name": current_player_name(),
+        "screen": str(screen_name),
+    }
+
+    if level_index is not None:
+        query_values["level"] = str(int(level_index))
+
+    return "?" + urllib.parse.urlencode(query_values)
+
+
 def clear_runtime_game_state():
     """Remove game state before switching to another player."""
 
@@ -1110,21 +1125,25 @@ def navigate(
     screen_name,
     level_index=None,
 ):
-    st.session_state.screen = (
-        screen_name
-    )
+    """Navigate without losing the active player profile."""
 
-    st.query_params["screen"] = (
-        screen_name
-    )
+    active_player_id = current_player_id()
+    active_player_name = current_player_name()
+
+    st.session_state.screen = screen_name
+
+    # Rebuild the URL with the player details included. This is important on
+    # Streamlit Community Cloud because opening a raw ?screen=... link may
+    # create a fresh session. Without the player parameter, the fresh session
+    # would return to the login page.
+    st.query_params.clear()
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+    st.query_params["player_name"] = active_player_name
+    st.query_params["screen"] = screen_name
+
     if level_index is not None:
-        st.session_state.selected_level = int(
-            level_index
-        )
-
-        st.query_params["level"] = str(
-            level_index
-        )
+        st.session_state.selected_level = int(level_index)
+        st.query_params["level"] = str(int(level_index))
 
     save_progress()
     st.rerun()
@@ -1958,7 +1977,12 @@ def submit_custom_result(payload):
     st.session_state.selected_picture_card = None
     st.session_state.screen = "result"
 
+    active_player_id = current_player_id()
+    active_player_name = current_player_name()
+
     st.query_params.clear()
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+    st.query_params["player_name"] = active_player_name
     st.query_params["screen"] = "result"
     st.query_params["level"] = str(level_index)
 
@@ -2374,6 +2398,19 @@ if not st.session_state.get("player_id") and query_player:
 if not current_player_id():
     render_player_login()
     st.stop()
+
+
+# Keep the active profile in the URL. This allows a new Streamlit Cloud
+# session created by a page link or browser refresh to restore the same player
+# instead of showing the login form again.
+active_player_id = current_player_id()
+active_player_name = current_player_name()
+
+if st.query_params.get(PLAYER_QUERY_KEY) != active_player_id:
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+
+if st.query_params.get("player_name") != active_player_name:
+    st.query_params["player_name"] = active_player_name
 
 
 browser_loaded = st.session_state.get(
@@ -3117,25 +3154,29 @@ def render_home():
             cover_path
         )
 
+        start_url = game_query_url("map")
+        achievements_url = game_query_url("achievements")
+        score_url = game_query_url("score")
+
         menu_html = (
             '<div class="main-menu-wrap">'
             f'<img src="{cover_uri}" '
             'alt="First Aid Heroes">'
             '<a '
             'class="menu-hotspot start-hotspot" '
-            'href="?screen=map" '
+            f'href="{start_url}" '
             'target="_self" '
             'aria-label="Start">'
             '</a>'
             '<a '
             'class="menu-hotspot achievement-hotspot" '
-            'href="?screen=achievements" '
+            f'href="{achievements_url}" '
             'target="_self" '
             'aria-label="Achievements">'
             '</a>'
             '<a '
             'class="menu-hotspot score-hotspot" '
-            'href="?screen=score" '
+            f'href="{score_url}" '
             'target="_self" '
             'aria-label="Score">'
             '</a>'
@@ -3213,7 +3254,7 @@ def render_map():
                         f'<a '
                         f'class="map-level-hotspot unlocked '
                         f'map-level-{level_number}" '
-                        f'href="?screen=difficulty&level={level_index}" '
+                        f'href="{game_query_url("difficulty", level_index)}" '
                         f'target="_self" '
                         f'title="Open Level {level_number}" '
                         f'aria-label="Open Level {level_number}">'
