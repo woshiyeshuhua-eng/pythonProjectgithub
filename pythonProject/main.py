@@ -10,6 +10,7 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
+from streamlit_sortables import sort_items
 
 
 st.set_page_config(
@@ -1843,683 +1844,257 @@ def submit_custom_result(payload):
 
 
 def render_custom_image_puzzle():
-    """Render a real image drag-and-drop puzzle inside a custom HTML component."""
+    """Render the puzzle using streamlit-sortables instead of an iframe.
 
-    if not st.session_state.get("custom_attempt_id"):
-        st.session_state.custom_attempt_id = (
-            f"{st.session_state.selected_level}-"
-            f"{st.session_state.difficulty}-"
-            f"{time.time_ns()}"
-        )
+    This keeps all navigation and result submission inside Streamlit, so it
+    works locally and on Streamlit Community Cloud without top-frame redirects,
+    hidden forms, browser-storage polling, or temporary fragment URLs.
+    """
 
-    attempt_id = st.session_state.custom_attempt_id
     level_index = st.session_state.selected_level
     difficulty = st.session_state.difficulty
     level = LEVELS[level_index]
-    slot_count = slot_count_for(level_index, difficulty)
 
-    cards = custom_puzzle_cards(
-        level_index,
-        difficulty,
-        level,
-    )
+    if st.session_state.layout is None:
+        start_puzzle()
+        return
 
-    decisions = decisions_for(
-        level,
-        difficulty,
-    )
-
-    cards_json = json.dumps(cards)
-    decisions_json = json.dumps(decisions)
-    correct_order_json = json.dumps(
-        correct_cards_for(
-            level_index,
-            level,
-            difficulty,
-        )
-    )
-
-    start_seconds = 0
-    if st.session_state.start_time is not None:
-        start_seconds = max(
-            0,
-            int(time.time() - st.session_state.start_time),
+    if not st.session_state.get("custom_attempt_id"):
+        st.session_state.custom_attempt_id = (
+            f"{level_index}-{difficulty}-{time.time_ns()}"
         )
 
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<base target="_parent">
-<meta charset="utf-8">
-<style>
-    * {{
-        box-sizing: border-box;
-    }}
-
-    body {{
-        margin: 0;
-        padding: 12px;
+    sortable_style = """
+    .sortable-component {
         font-family: Arial, sans-serif;
-        background: transparent;
-        color: #202124;
-    }}
-
-    .game-shell {{
-        background: #fffaf0;
-        border: 5px solid #202124;
-        border-radius: 18px;
-        padding: 16px;
-        box-shadow: 8px 8px 0 #202124;
-    }}
-
-    .status-row {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        margin-bottom: 16px;
-    }}
-
-    .status-box {{
-        background: white;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        text-align: center;
-        padding: 10px;
-        font-weight: 900;
-        box-shadow: 4px 4px 0 #202124;
-    }}
-
-    .tray-title,
-    .slot-title {{
-        font-weight: 900;
-        margin-bottom: 7px;
-    }}
-
-    .tray {{
-        min-height: 190px;
-        padding: 12px;
-        border: 4px dashed #202124;
-        border-radius: 14px;
-        background: #eaf7ff;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-start;
-        margin-bottom: 18px;
-    }}
-
-    .slots {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-    }}
-
-    .slot {{
-        min-height: 220px;
-        padding: 8px;
-        border: 4px dashed #202124;
-        border-radius: 14px;
-        background: #f5f5f5;
-        display: flex;
-        flex-direction: column;
-    }}
-
-    .slot.drop-active,
-    .tray.drop-active {{
-        background: #fff0ae;
-    }}
-
-    .slot-body {{
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-
-    .card {{
-        width: 160px;
-        max-width: 100%;
-        background: white;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        padding: 7px;
-        box-shadow: 4px 4px 0 #202124;
-        cursor: grab;
-        user-select: none;
-        touch-action: none;
-    }}
-
-    .card:active {{
-        cursor: grabbing;
-    }}
-
-    .card img {{
-        width: 100%;
-        height: 135px;
-        object-fit: contain;
-        display: block;
-        border-radius: 8px;
-        background: white;
-    }}
-
-    .card-label {{
-        font-size: 12px;
-        font-weight: 700;
-        text-align: center;
-        margin-top: 6px;
-        line-height: 1.2;
-    }}
-
-    .missing-image {{
-        height: 135px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #eeeeee;
-        border-radius: 8px;
-        font-weight: 900;
-    }}
-
-    .controls {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        margin-top: 18px;
-    }}
-
-    button,
-    .control-link {{
-        min-height: 54px;
-        border: 4px solid #202124;
-        border-radius: 10px;
-        background: #20a43a;
-        color: white;
-        box-shadow: 5px 5px 0 #202124;
-        font-weight: 900;
-        font-size: 16px;
-        cursor: pointer;
-    }}
-
-    .control-link {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        background: #ffca28;
-        color: #202124;
-        position: relative;
-        z-index: 10000;
-        pointer-events: auto;
-    }}
-
-    button:hover,
-    .control-link:hover {{
-        background: #ffca28;
-        color: #202124;
-    }}
-
-    button:active {{
-        transform: translate(4px, 4px);
-        box-shadow: 1px 1px 0 #202124;
-    }}
-
-    .message {{
-        min-height: 28px;
-        margin-top: 14px;
-        font-weight: 900;
-        color: #c62828;
-        text-align: center;
-    }}
-
-    .modal-backdrop {{
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.58);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        padding: 18px;
-    }}
-
-    .modal {{
-        width: min(500px, 96vw);
-        max-height: 92vh;
-        overflow-y: auto;
-        background: white;
-        border: 5px solid #202124;
-        border-radius: 16px;
-        box-shadow: 9px 9px 0 #202124;
-        padding: 18px;
-    }}
-
-    .modal img {{
-        width: 100%;
-        max-height: 260px;
-        object-fit: contain;
-        border-radius: 10px;
-        margin-bottom: 12px;
-    }}
-
-    .question {{
-        background: #fff0ae;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        padding: 14px;
-        font-weight: 900;
-        margin-bottom: 12px;
-    }}
-
-    .option {{
-        display: block;
-        background: #f5f5f5;
-        border: 3px solid #202124;
-        border-radius: 10px;
-        padding: 10px;
-        margin: 8px 0;
-        font-weight: 700;
-    }}
-
-    @media (max-width: 780px) {{
-        .slots {{
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }}
-
-        .status-row {{
-            grid-template-columns: 1fr;
-        }}
-
-        .controls {{
-            grid-template-columns: 1fr;
-        }}
-    }}
-</style>
-</head>
-<body>
-<div class="game-shell">
-    <div class="status-row">
-        <div class="status-box">DIFFICULTY<br>{difficulty}</div>
-        <div class="status-box">MOVES<br><span id="moves">0</span></div>
-        <div class="status-box">TIME<br><span id="timer">{start_seconds}s</span></div>
-    </div>
-
-    <div class="tray-title">CARD TRAY</div>
-    <div id="tray" class="tray"></div>
-
-    <div id="slots" class="slots"></div>
-
-    <div class="controls">
-        <button id="backBtn" class="control-link" type="button">BACK</button>
-        <button id="restartBtn">RESTART</button>
-        <button id="doneBtn">DONE</button>
-    </div>
-
-    <div id="message" class="message"></div>
-</div>
-
-<div id="modalBackdrop" class="modal-backdrop">
-    <div class="modal">
-        <img id="modalImage" alt="">
-        <div id="modalQuestion" class="question"></div>
-        <div id="modalOptions"></div>
-        <button id="confirmDecision">CONFIRM ANSWER</button>
-    </div>
-</div>
-
-<script>
-const cards = {cards_json};
-const decisions = {decisions_json};
-const correctOrder = {correct_order_json};
-const slotCount = {slot_count};
-const initialElapsed = {start_seconds};
-
-let moves = 0;
-let elapsed = initialElapsed;
-let draggedId = null;
-let activeDecision = null;
-let selectedAnswer = null;
-const answers = {{}};
-
-const tray = document.getElementById("tray");
-const slotsRoot = document.getElementById("slots");
-const message = document.getElementById("message");
-const modalBackdrop = document.getElementById("modalBackdrop");
-const modalImage = document.getElementById("modalImage");
-const modalQuestion = document.getElementById("modalQuestion");
-const modalOptions = document.getElementById("modalOptions");
-
-function cardData(id) {{
-    return cards.find(card => card.id === id);
-}}
-
-function buildCard(card) {{
-    const node = document.createElement("div");
-    node.className = "card";
-    node.draggable = true;
-    node.dataset.cardId = card.id;
-
-    if (card.image) {{
-        const image = document.createElement("img");
-        image.src = card.image;
-        image.alt = card.label;
-        node.appendChild(image);
-    }} else {{
-        const missing = document.createElement("div");
-        missing.className = "missing-image";
-        missing.textContent = card.id + " image missing";
-        node.appendChild(missing);
-    }}
-
-    const label = document.createElement("div");
-    label.className = "card-label";
-    label.textContent = card.label;
-    node.appendChild(label);
-
-    node.addEventListener("dragstart", event => {{
-        draggedId = card.id;
-        event.dataTransfer.setData("text/plain", card.id);
-        event.dataTransfer.effectAllowed = "move";
-    }});
-
-    node.addEventListener("dragend", () => {{
-        draggedId = null;
-        document.querySelectorAll(".drop-active")
-            .forEach(element => element.classList.remove("drop-active"));
-    }});
-
-    return node;
-}}
-
-function createSlot(index) {{
-    const slot = document.createElement("div");
-    slot.className = "slot";
-    slot.dataset.slotIndex = String(index);
-
-    const title = document.createElement("div");
-    title.className = "slot-title";
-    title.textContent = "SLOT " + (index + 1);
-
-    const body = document.createElement("div");
-    body.className = "slot-body";
-
-    slot.appendChild(title);
-    slot.appendChild(body);
-
-    makeDropTarget(slot, body, false);
-    return slot;
-}}
-
-function makeDropTarget(target, body, isTray) {{
-    target.addEventListener("dragover", event => {{
-        event.preventDefault();
-        target.classList.add("drop-active");
-    }});
-
-    target.addEventListener("dragleave", () => {{
-        target.classList.remove("drop-active");
-    }});
-
-    target.addEventListener("drop", event => {{
-        event.preventDefault();
-        target.classList.remove("drop-active");
-
-        const cardId = event.dataTransfer.getData("text/plain") || draggedId;
-        if (!cardId) return;
-
-        const cardNode = document.querySelector(
-            `.card[data-card-id="${{CSS.escape(cardId)}}"]`
-        );
-
-        if (!cardNode) return;
-
-        if (isTray) {{
-            tray.appendChild(cardNode);
-            moves += 1;
-            updateMoves();
-            return;
-        }}
-
-        const existing = body.querySelector(".card");
-
-        if (existing && existing.dataset.cardId !== cardId) {{
-            tray.appendChild(existing);
-        }}
-
-        body.appendChild(cardNode);
-        moves += 1;
-        updateMoves();
-        triggerDecision(cardId);
-    }});
-}}
-
-function updateMoves() {{
-    document.getElementById("moves").textContent = String(moves);
-}}
-
-function triggerDecision(cardId) {{
-    const decision = decisions.find(
-        item => item.trigger === cardId && !(item.id in answers)
-    );
-
-    if (!decision) return;
-
-    activeDecision = decision;
-    selectedAnswer = null;
-
-    const card = cardData(cardId);
-    modalImage.style.display = card && card.image ? "block" : "none";
-    modalImage.src = card && card.image ? card.image : "";
-    modalQuestion.textContent = decision.question;
-    modalOptions.innerHTML = "";
-
-    decision.options.forEach(option => {{
-        const label = document.createElement("label");
-        label.className = "option";
-
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "decisionOption";
-        radio.value = option;
-        radio.addEventListener("change", () => {{
-            selectedAnswer = option;
-        }});
-
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(" " + option));
-        modalOptions.appendChild(label);
-    }});
-
-    modalBackdrop.style.display = "flex";
-    modalBackdrop.scrollTop = 0;
-}}
-
-document.getElementById("confirmDecision").addEventListener("click", () => {{
-    if (!activeDecision || selectedAnswer === null) {{
-        alert("Choose one answer first.");
-        return;
-    }}
-
-    answers[activeDecision.id] = selectedAnswer;
-    modalBackdrop.style.display = "none";
-    activeDecision = null;
-    selectedAnswer = null;
-}});
-
-function currentSequence() {{
-    return Array.from(document.querySelectorAll(".slot-body"))
-        .map(body => {{
-            const card = body.querySelector(".card");
-            return card ? card.dataset.cardId : null;
-        }});
-}}
-
-function getParentAppAction() {{
-    /*
-    Streamlit components can have a temporary fragment URL as their
-    document.referrer. Submitting to that URL causes the cloud error:
-    "The fragment ... does not exist anymore".
-
-    ancestorOrigins[0] gives the real parent app origin without trying
-    to read the protected parent window location.
-    */
-    try {{
-        if (
-            window.location.ancestorOrigins
-            && window.location.ancestorOrigins.length > 0
-        ) {{
-            return window.location.ancestorOrigins[0] + "/";
-        }}
-    }} catch (error) {{
-        console.error(error);
-    }}
-
-    try {{
-        if (document.referrer) {{
-            const referrerUrl = new URL(document.referrer);
-            return referrerUrl.origin + "/";
-        }}
-    }} catch (error) {{
-        console.error(error);
-    }}
-
-    return "/";
-}}
-
-function submitParentForm(parameters) {{
-    const form = document.createElement("form");
-    form.method = "GET";
-    form.action = getParentAppAction();
-    form.target = "_top";
-    form.style.display = "none";
-
-    Object.entries(parameters).forEach(([name, value]) => {{
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = name;
-        input.value = String(value);
-        form.appendChild(input);
-    }});
-
-    document.body.appendChild(form);
-    form.submit();
-}}
-
-function openParentScreen(screenName, extraParams = {{}}) {{
-    try {{
-        message.textContent = "Opening page...";
-        submitParentForm({{
-            screen: screenName,
-            level: Object.prototype.hasOwnProperty.call(extraParams, "level")
-                ? String(extraParams.level)
-                : String({level_index})
-        }});
-    }} catch (error) {{
-        console.error(error);
-        message.textContent = "Unable to open the requested page.";
-    }}
-}}
-
-function encodePayloadForUrl(payload) {{
-    const jsonText = JSON.stringify(payload);
-    const bytes = new TextEncoder().encode(jsonText);
-    let binary = "";
-
-    bytes.forEach(byte => {{
-        binary += String.fromCharCode(byte);
-    }});
-
-    return btoa(binary)
-        .split("+").join("-")
-        .split("/").join("_")
-        .replace(/=+$/g, "");
-}}
-
-function submitToStreamlit(payload) {{
-    try {{
-        message.textContent = "Checking your answers...";
-        submitParentForm({{
-            screen: "puzzle",
-            level: String({level_index}),
-            puzzle_submit: encodePayloadForUrl(payload)
-        }});
-    }} catch (error) {{
-        console.error(error);
-        message.textContent =
-            "Unable to submit the result. Please refresh and try again.";
-    }}
-}}
-
-document.getElementById("doneBtn").addEventListener("click", () => {{
-    message.textContent = "";
-
-    const sequence = currentSequence();
-
-    if (sequence.some(item => item === null)) {{
-        message.textContent = "Place one picture in every slot.";
-        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
-        return;
-    }}
-
-    const unansweredDecisions = decisions.filter(
-        item => !(item.id in answers)
-    );
-
-    if (unansweredDecisions.length > 0) {{
-        message.textContent =
-            "Answer the popup question before pressing DONE.";
-        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
-
-        const missingDecision = unansweredDecisions[0];
-        triggerDecision(missingDecision.trigger);
-        return;
-    }}
-
-    message.textContent = "Checking your answers...";
-
-    submitToStreamlit({{
-        sequence,
-        answers,
-        moves,
-        elapsed,
-        attempt_id: "{attempt_id}"
-    }});
-}});
-
-document.getElementById("backBtn").addEventListener("click", () => {{
-    openParentScreen("map");
-}});
-
-document.getElementById("restartBtn").addEventListener("click", () => {{
-    window.location.reload();
-}});
-
-
-
-cards.forEach(card => {{
-    tray.appendChild(buildCard(card));
-}});
-
-for (let index = 0; index < slotCount; index += 1) {{
-    slotsRoot.appendChild(createSlot(index));
-}}
-
-makeDropTarget(tray, tray, true);
-
-setInterval(() => {{
-    elapsed += 1;
-    document.getElementById("timer").textContent = elapsed + "s";
-}}, 1000);
-</script>
-</body>
-</html>
-"""
-
-    components.html(
-        html,
-        height=980 if slot_count >= 6 else 800,
-        scrolling=True,
+    }
+
+    .sortable-container {
+        background: #fffaf0 !important;
+        border: 4px dashed #202124 !important;
+        border-radius: 14px !important;
+        padding: 12px !important;
+        margin-bottom: 14px !important;
+        min-height: 205px !important;
+    }
+
+    .sortable-container-header {
+        color: #202124 !important;
+        font-size: 17px !important;
+        font-weight: 900 !important;
+        margin-bottom: 8px !important;
+    }
+
+    .sortable-item {
+        background: white !important;
+        border: 4px solid #202124 !important;
+        border-radius: 12px !important;
+        box-shadow: 4px 4px 0 #202124 !important;
+        padding: 7px !important;
+        margin: 7px !important;
+        width: 175px !important;
+        max-width: 100% !important;
+        color: #202124 !important;
+    }
+
+    .sortable-picture-card {
+        width: 100% !important;
+        color: #202124 !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+    }
+
+    .sortable-picture-card img {
+        width: 150px !important;
+        max-width: 100% !important;
+        height: 150px !important;
+        object-fit: contain !important;
+        display: block !important;
+        margin: auto !important;
+    }
+    """
+
+    returned_layout = sort_items(
+        st.session_state.layout,
+        direction="horizontal",
+        multi_containers=True,
+        custom_style=sortable_style,
+        key=(
+            "first_aid_sortable_"
+            f"{st.session_state.custom_attempt_id}"
+        ),
     )
+
+    corrected_layout, slot_changed = limit_one_card_per_slot(
+        returned_layout
+    )
+
+    old_sequence = list(
+        st.session_state.get(
+            "previous_sequence",
+            [None] * slot_count_for(level_index, difficulty),
+        )
+    )
+    new_sequence = sequence_from_layout(corrected_layout)
+
+    layout_changed = (
+        serialisable_layout(corrected_layout)
+        != serialisable_layout(st.session_state.layout)
+    )
+
+    if layout_changed:
+        changed_positions = sum(
+            old_value != new_value
+            for old_value, new_value in zip(
+                old_sequence,
+                new_sequence,
+            )
+        )
+        st.session_state.moves += max(1, changed_positions)
+
+        new_decision = detect_new_decision(
+            level,
+            old_sequence,
+            new_sequence,
+        )
+
+        st.session_state.layout = copy.deepcopy(corrected_layout)
+        st.session_state.previous_layout = copy.deepcopy(corrected_layout)
+        st.session_state.previous_sequence = list(new_sequence)
+
+        if (
+            new_decision is not None
+            and st.session_state.pending_decision is None
+        ):
+            st.session_state.pending_decision = new_decision
+
+        save_progress()
+
+    if slot_changed:
+        st.warning(
+            "Only one picture can be placed in each slot. "
+            "The extra picture was returned to the card tray."
+        )
+
+    status_1, status_2, status_3 = st.columns(3)
+
+    with status_1:
+        st.markdown(
+            (
+                '<div class="stat-box">'
+                '<div>DIFFICULTY</div>'
+                f'<span>{difficulty}</span>'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with status_2:
+        st.markdown(
+            (
+                '<div class="stat-box">'
+                '<div>MOVES</div>'
+                f'<span>{st.session_state.moves}</span>'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
+        )
+
+    with status_3:
+        live_timer()
+
+    pending_id = st.session_state.pending_decision
+
+    if pending_id:
+        decision = get_decision(level, pending_id)
+
+        if decision is not None:
+            st.markdown(
+                (
+                    '<div class="popup-question">'
+                    '<h3>DECISION QUESTION</h3>'
+                    f'<p>{decision["question"]}</p>'
+                    '</div>'
+                ),
+                unsafe_allow_html=True,
+            )
+
+            selected_answer = st.radio(
+                decision["question"],
+                decision["options"],
+                index=None,
+                key=f"decision_answer_{pending_id}",
+                label_visibility="collapsed",
+            )
+
+            if st.button(
+                "CONFIRM ANSWER",
+                key=f"confirm_decision_{pending_id}",
+                use_container_width=True,
+            ):
+                if selected_answer is None:
+                    st.warning("Choose one answer first.")
+                else:
+                    st.session_state.decision_answers[pending_id] = (
+                        selected_answer
+                    )
+                    st.session_state.pending_decision = None
+                    save_progress()
+                    st.rerun()
+
+    control_back, control_restart, control_done = st.columns(3)
+
+    with control_back:
+        if st.button(
+            "BACK",
+            key="puzzle_back_to_map",
+            use_container_width=True,
+        ):
+            st.session_state.layout = None
+            st.session_state.previous_layout = None
+            st.session_state.previous_sequence = [None] * 6
+            st.session_state.start_time = None
+            st.session_state.pending_decision = None
+            st.session_state.decision_answers = {}
+            st.session_state.custom_attempt_id = ""
+            navigate("map")
+
+    with control_restart:
+        if st.button(
+            "RESTART",
+            key="puzzle_restart",
+            use_container_width=True,
+        ):
+            start_puzzle()
+
+    with control_done:
+        if st.button(
+            "DONE",
+            key="puzzle_done",
+            use_container_width=True,
+        ):
+            if st.session_state.pending_decision is not None:
+                st.warning(
+                    "Confirm the current popup answer before pressing DONE."
+                )
+            elif not slots_complete(st.session_state.layout):
+                st.warning("Place one picture in every slot.")
+            elif not decisions_complete(level):
+                unanswered = [
+                    decision
+                    for decision in decisions_for(level, difficulty)
+                    if decision["id"]
+                    not in st.session_state.decision_answers
+                ]
+
+                if unanswered:
+                    st.session_state.pending_decision = unanswered[0]["id"]
+                    st.warning(
+                        "Answer all decision questions before pressing DONE."
+                    )
+                    st.rerun()
+            else:
+                evaluate_level()
 
 browser_loaded = st.session_state.get(
     "browser_progress_loaded",
@@ -3957,9 +3532,6 @@ elif screen == "scenario":
 
 
 elif screen == "puzzle":
-    # Check for DONE or BACK commands before rendering the puzzle.
-    # Do not clear Local Storage here because DONE reloads this page first.
-    poll_custom_puzzle_result()
     show_top_bar()
 
     level_index = st.session_state.selected_level
