@@ -1968,7 +1968,7 @@ def render_custom_image_puzzle():
     # ------------------------- CARD TRAY -------------------------
     st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
     st.markdown("### CARD TRAY")
-    st.caption("Press SELECT under a picture, then press PLACE HERE in a slot.")
+    st.caption("Select a picture, then press PLACE HERE in the slot where you want to put it.")
 
     tray_ids = list(st.session_state.layout[0].get("items", []))
     if not tray_ids:
@@ -1981,7 +1981,7 @@ def render_custom_image_puzzle():
                 with columns[column_index]:
                     image_path = card_image(card_id)
                     if image_path is not None:
-                        st.image(str(image_path), use_container_width=True)
+                        st.image(str(image_path), width=180)
                     else:
                         st.info(f"Image missing: {card_id}")
 
@@ -2032,7 +2032,7 @@ def render_custom_image_puzzle():
                     card_id = slot_items[0]
                     image_path = card_image(card_id)
                     if image_path is not None:
-                        st.image(str(image_path), use_container_width=True)
+                        st.image(str(image_path), width=170)
                     else:
                         st.info(f"Image missing: {card_id}")
 
@@ -3608,8 +3608,8 @@ elif screen == "puzzle":
             '</div>'
             f'<h2>{level["title"]}</h2>'
             '<p>'
-            'Drag each picture into the correct slot. '
-            'Decision questions appear when selected pictures are placed.'
+            'Press SELECT under a picture, then press PLACE HERE in the correct slot. '
+            'Decision questions will appear after certain pictures are placed.'
             '</p>'
             '</div>'
         ),
