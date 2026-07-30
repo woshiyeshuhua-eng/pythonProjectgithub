@@ -2250,19 +2250,26 @@ browser_loaded = st.session_state.get(
 if not browser_loaded:
     browser_value = read_browser_progress()
 
+    # streamlit-js-eval may temporarily return None on Streamlit Cloud,
+    # especially after navigation creates a new page session. Do not stop
+    # the whole app on a permanent loading screen. Continue with a clean
+    # state for this session; saved progress can still be written normally
+    # after the app has loaded.
     if browser_value is None:
-        st.info(
-            "Loading your saved progress..."
+        initialise_state(
+            empty_progress()
         )
-        st.stop()
-
-    initialise_state(
-        sanitise_progress(
-            browser_value
+    else:
+        initialise_state(
+            sanitise_progress(
+                browser_value
+            )
         )
-    )
 
 else:
+    # State is already present in the active Streamlit session. Passing
+    # defaults here does not overwrite existing values because
+    # initialise_state only creates missing keys.
     initialise_state(
         empty_progress()
     )
