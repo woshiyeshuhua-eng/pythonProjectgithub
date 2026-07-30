@@ -1949,6 +1949,105 @@ def render_custom_image_puzzle():
     def card_image(card_id):
         return image_path_for_card(level_index, difficulty, card_id)
 
+    def render_clickable_picture(card_id, location_key, compact=False):
+        """Render the whole picture card as a native Streamlit button.
+
+        Using a native button avoids the full-page URL navigation that caused
+        the temporary black loading screen on Streamlit Community Cloud.
+        """
+
+        image_path = card_image(card_id)
+        if image_path is None:
+            st.info(f"Image missing: {card_id}")
+            return
+
+        selected = st.session_state.selected_picture_card == card_id
+        image_uri = image_data_uri(image_path)
+        safe_location = re.sub(r"[^A-Za-z0-9_]", "_", location_key)
+        container_key = f"picture_card_{safe_location}"
+        button_key = (
+            f"select_picture_{safe_location}_"
+            f"{st.session_state.custom_attempt_id}"
+        )
+
+        # Image-only comic card: keep the same theme but remove all wording.
+        card_height = 150 if compact else 178
+        image_height = 124 if compact else 150
+        border_colour = "#ffca28" if selected else "#202124"
+        background_colour = "#fff0ae" if selected else "#ffffff"
+        accessible_label = level["cards"].get(card_id, card_id)
+        selected_badge = (
+            "content: '✓';"
+            if selected
+            else "content: ''; display: none;"
+        )
+
+        st.markdown(
+            f"""
+            <style>
+            .st-key-{container_key} div.stButton > button {{
+                position: relative !important;
+                width: 100% !important;
+                min-height: {card_height}px !important;
+                height: {card_height}px !important;
+                padding: 0 !important;
+                background-color: {background_colour} !important;
+                background-image: url('{image_uri}') !important;
+                background-repeat: no-repeat !important;
+                background-position: center !important;
+                background-size: auto {image_height}px !important;
+                border: 5px solid {border_colour} !important;
+                border-radius: 14px !important;
+                box-shadow: 5px 5px 0 #202124 !important;
+                color: transparent !important;
+                font-size: 0 !important;
+                line-height: 0 !important;
+                cursor: pointer !important;
+                overflow: visible !important;
+                transition: transform 0.12s ease, border-color 0.12s ease !important;
+            }}
+            .st-key-{container_key} div.stButton > button:hover {{
+                background-color: #fff0ae !important;
+                border-color: #ffca28 !important;
+                transform: translateY(-2px) scale(1.015) !important;
+            }}
+            .st-key-{container_key} div.stButton > button::after {{
+                {selected_badge}
+                position: absolute;
+                top: -13px;
+                right: -13px;
+                width: 35px;
+                height: 35px;
+                border: 4px solid #202124;
+                border-radius: 50%;
+                background: #ffca28;
+                color: #202124;
+                font-family: Arial, sans-serif;
+                font-size: 22px;
+                font-weight: 900;
+                line-height: 28px;
+                text-align: center;
+                box-shadow: 3px 3px 0 #202124;
+                z-index: 5;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.container(key=container_key):
+            if st.button(
+                " ",
+                key=button_key,
+                help=accessible_label,
+                use_container_width=True,
+            ):
+                current = st.session_state.get("selected_picture_card")
+                st.session_state.selected_picture_card = (
+                    None if current == card_id else card_id
+                )
+
+
     # ---------------------- STATUS AT THE TOP ---------------------
     status_1, status_2, status_3 = st.columns(3)
     with status_1:
@@ -2028,7 +2127,7 @@ def render_custom_image_puzzle():
     # ---------------- HORIZONTAL CARD TRAY ----------------
     st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
     st.markdown("### CARD TRAY")
-    st.caption("Click a picture to select it, then press PLACE HERE in the correct slot.")
+    st.caption("Click a picture, then press PLACE HERE in the correct story slot.")
 
     tray_ids = list(st.session_state.layout[0].get("items", []))
 
@@ -2039,46 +2138,15 @@ def render_custom_image_puzzle():
 
         for card_position, card_id in enumerate(tray_ids):
             with tray_columns[card_position % len(tray_columns)]:
-                image_path = card_image(card_id)
-                selected = st.session_state.selected_picture_card == card_id
-
-                if image_path is not None:
-                    image_uri = image_data_uri(image_path)
-                    border_colour = "#ffca28" if selected else "#202124"
-                    background_colour = "#fff0ae" if selected else "#ffffff"
-                    selection_text = "SELECTED ✓" if selected else "CLICK TO SELECT"
-                    card_url = (
-                        f"?screen=puzzle&level={level_index}"
-                        f"&select_card={urllib.parse.quote(card_id)}"
-                    )
-
-                    st.markdown(
-                        f'''<a href="{card_url}" target="_self" style="text-decoration:none;">
-                        <div style="background:{background_colour};border:5px solid {border_colour};
-                        border-radius:14px;padding:8px;box-shadow:5px 5px 0 #202124;
-                        text-align:center;cursor:pointer;margin-bottom:10px;">
-                            <img src="{image_uri}" alt="{card_id}"
-                            style="width:100%;max-width:145px;height:125px;object-fit:contain;
-                            border-radius:9px;display:block;margin:0 auto 7px auto;">
-                            <div style="color:#202124;font-weight:800;font-size:0.82rem;
-                            line-height:1.15;min-height:38px;">
-                                {level['cards'].get(card_id, card_id)}
-                            </div>
-                            <div style="margin-top:7px;color:#202124;font-weight:900;
-                            font-size:0.75rem;">{selection_text}</div>
-                        </div></a>''',
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.info(f"Image missing: {card_id}")
+                render_clickable_picture(
+                    card_id,
+                    f"tray_{card_position}_{card_id}",
+                    compact=False,
+                )
 
     selected_card = st.session_state.get("selected_picture_card")
     if selected_card:
-        st.success(
-            "Selected: "
-            + level["cards"].get(selected_card, selected_card)
-            + ". Choose a story slot below."
-        )
+        st.success("Picture selected. Choose a story slot below.")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ---------------- SMALLER STORY SLOTS ----------------
@@ -2104,37 +2172,11 @@ def render_custom_image_puzzle():
 
                 if slot_items:
                     card_id = slot_items[0]
-                    image_path = card_image(card_id)
-                    selected = st.session_state.selected_picture_card == card_id
-
-                    if image_path is not None:
-                        image_uri = image_data_uri(image_path)
-                        border_colour = "#ffca28" if selected else "#202124"
-                        background_colour = "#fff0ae" if selected else "#ffffff"
-                        selection_text = "SELECTED ✓" if selected else "CLICK PICTURE TO SELECT"
-                        card_url = (
-                            f"?screen=puzzle&level={level_index}"
-                            f"&select_card={urllib.parse.quote(card_id)}"
-                        )
-
-                        st.markdown(
-                            f'''<a href="{card_url}" target="_self" style="text-decoration:none;">
-                            <div style="background:{background_colour};border:4px solid {border_colour};
-                            border-radius:12px;padding:7px;text-align:center;cursor:pointer;">
-                                <img src="{image_uri}" alt="{card_id}"
-                                style="width:100%;max-width:125px;height:110px;object-fit:contain;
-                                border-radius:8px;display:block;margin:0 auto 6px auto;">
-                                <div style="color:#202124;font-weight:750;font-size:0.78rem;
-                                line-height:1.12;min-height:34px;">
-                                    {level['cards'].get(card_id, card_id)}
-                                </div>
-                                <div style="margin-top:6px;color:#202124;font-weight:900;
-                                font-size:0.68rem;">{selection_text}</div>
-                            </div></a>''',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.info(f"Image missing: {card_id}")
+                    render_clickable_picture(
+                        card_id,
+                        f"slot_{slot_index}_{card_id}",
+                        compact=True,
+                    )
 
                     if st.button(
                         "RETURN TO TRAY",
@@ -2299,24 +2341,6 @@ if query_level is not None:
         pass
 
 
-query_select_card = st.query_params.get("select_card")
-
-if query_select_card:
-    available_cards = []
-    current_layout = st.session_state.get("layout")
-
-    if isinstance(current_layout, list):
-        for container in current_layout:
-            if isinstance(container, dict):
-                available_cards.extend(container.get("items", []))
-
-    if query_select_card in available_cards:
-        current_selected = st.session_state.get("selected_picture_card")
-        st.session_state.selected_picture_card = (
-            None if current_selected == query_select_card else query_select_card
-        )
-
-    st.query_params.pop("select_card", None)
     st.rerun()
 
 
