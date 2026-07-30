@@ -20,12 +20,132 @@ st.set_page_config(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-BROWSER_STORAGE_KEY = "first_aid_heroes_progress_v2"
+BROWSER_STORAGE_PREFIX = "first_aid_heroes_progress_v3"
+PLAYER_QUERY_KEY = "player"
 PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
 PUZZLE_NAV_STORAGE_KEY = "first_aid_heroes_pending_navigation"
 NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
 
+
+
+
+def normalise_player_id(value):
+    """Create a safe, consistent ID for one player profile."""
+
+    value = str(value or "").strip().lower()
+    value = re.sub(r"[^a-z0-9_-]+", "-", value)
+    value = re.sub(r"-+", "-", value).strip("-_")
+    return value[:40]
+
+
+def current_player_id():
+    """Return the active player ID for this browser session."""
+
+    return normalise_player_id(
+        st.session_state.get("player_id")
+        or st.query_params.get(PLAYER_QUERY_KEY, "")
+    )
+
+
+def current_player_name():
+    """Return the display name shown in the game UI."""
+
+    return str(
+        st.session_state.get("player_name")
+        or st.query_params.get("player_name", "")
+        or current_player_id()
+        or "Player"
+    )
+
+
+def browser_storage_key():
+    """Use a separate Local Storage key for every player profile."""
+
+    player_id = current_player_id()
+    return f"{BROWSER_STORAGE_PREFIX}::{player_id}"
+
+
+def clear_runtime_game_state():
+    """Remove game state before switching to another player."""
+
+    keys_to_clear = [
+        "screen", "selected_level", "difficulty", "score",
+        "completed_modes", "mode_stars", "layout", "previous_layout",
+        "previous_sequence", "moves", "start_time", "decision_answers",
+        "pending_decision", "result", "show_hint", "sort_key",
+        "slot_warning", "browser_progress_loaded", "attempt_restored",
+        "custom_attempt_id", "selected_picture_card",
+        "pending_browser_action", "pending_browser_payload",
+        "browser_action_revision",
+    ]
+
+    for key in keys_to_clear:
+        st.session_state.pop(key, None)
+
+
+def render_player_login():
+    """Ask each learner for a Player ID before loading their save."""
+
+    st.markdown(
+        """
+        <style>
+        .player-login-card {
+            max-width: 680px; margin: 70px auto 20px auto; padding: 28px;
+            background: #fffaf0; border: 5px solid #202124;
+            border-radius: 18px; box-shadow: 9px 9px 0 #202124;
+        }
+        .player-login-title {
+            font-size: 2.4rem; font-weight: 900; margin-bottom: 8px;
+        }
+        </style>
+        <div class="player-login-card">
+            <div class="player-login-title">FIRST AID HEROES</div>
+            <p>Enter your own Player ID to load your saved stars, score and unfinished attempt.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.form("player_login_form", clear_on_submit=False):
+        display_name = st.text_input(
+            "Player name",
+            placeholder="Example: Anna",
+            max_chars=30,
+        )
+        player_code = st.text_input(
+            "Player ID",
+            placeholder="Example: anna-01",
+            max_chars=40,
+            help=(
+                "Use the same Player ID next time to continue. "
+                "Each Player ID has a separate save on this browser."
+            ),
+        )
+        submitted = st.form_submit_button(
+            "LOAD MY GAME",
+            use_container_width=True,
+        )
+
+    if submitted:
+        clean_id = normalise_player_id(player_code)
+        clean_name = str(display_name or player_code).strip()[:30]
+
+        if len(clean_id) < 2:
+            st.error("Enter a Player ID with at least 2 letters or numbers.")
+        else:
+            clear_runtime_game_state()
+            st.session_state.player_id = clean_id
+            st.session_state.player_name = clean_name or clean_id
+            st.query_params.clear()
+            st.query_params[PLAYER_QUERY_KEY] = clean_id
+            st.query_params["player_name"] = clean_name or clean_id
+            st.rerun()
+
+    st.caption(
+        "Progress is saved separately for each Player ID in this browser. "
+        "Use the same device, browser and Player ID to continue."
+    )
 
 LEVELS = [
     {
@@ -463,7 +583,7 @@ def read_browser_progress():
     """Read progress belonging only to the current browser."""
 
     storage_key_json = json.dumps(
-        BROWSER_STORAGE_KEY
+        browser_storage_key()
     )
 
     fallback_json = json.dumps(
@@ -478,7 +598,7 @@ def read_browser_progress():
             f"{fallback_json}"
         ),
         want_output=True,
-        key="load_first_aid_browser_progress",
+        key=f"load_first_aid_browser_progress_{current_player_id()}",
     )
 
 
@@ -611,6 +731,9 @@ def build_attempt_payload():
                 False,
             )
         ),
+        "selected_picture_card": st.session_state.get(
+            "selected_picture_card"
+        ),
     }
 
 
@@ -618,6 +741,9 @@ def build_progress_payload():
     """Create the complete save file for this browser user."""
 
     data = {
+        "player_id": current_player_id(),
+        "player_name": current_player_name(),
+        "saved_at": int(time.time()),
         "score": int(
             st.session_state.get(
                 "score",
@@ -704,7 +830,7 @@ def flush_pending_browser_action():
     )
 
     storage_key_json = json.dumps(
-        BROWSER_STORAGE_KEY
+        browser_storage_key()
     )
 
     if action == "save":
@@ -757,6 +883,7 @@ def reset_saved_progress():
     st.session_state.pending_decision = None
     st.session_state.result = None
     st.session_state.show_hint = False
+    st.session_state.selected_picture_card = None
     st.session_state.screen = "home"
 
     st.session_state.pending_browser_action = "reset"
@@ -959,6 +1086,11 @@ def initialise_state(saved_progress):
                         "show_hint",
                         False,
                     )
+                )
+
+                restored_selected = attempt.get("selected_picture_card")
+                st.session_state.selected_picture_card = (
+                    str(restored_selected) if restored_selected else None
                 )
 
                 st.session_state.screen = "puzzle"
@@ -1266,6 +1398,7 @@ def start_puzzle():
     st.session_state.result = None
     st.session_state.show_hint = False
     st.session_state.slot_warning = False
+    st.session_state.selected_picture_card = None
     st.session_state.sort_key += 1
     st.session_state.custom_attempt_id = (
         f"{level_index}-{difficulty}-{time.time_ns()}"
@@ -2225,6 +2358,24 @@ def render_custom_image_puzzle():
                 evaluate_level()
 
 
+
+# -----------------------------------------------------------------------------
+# PLAYER PROFILE GATE
+# Every Player ID receives its own browser save and unfinished-attempt record.
+# -----------------------------------------------------------------------------
+query_player = normalise_player_id(st.query_params.get(PLAYER_QUERY_KEY, ""))
+
+if not st.session_state.get("player_id") and query_player:
+    st.session_state.player_id = query_player
+    st.session_state.player_name = str(
+        st.query_params.get("player_name", query_player)
+    )[:30]
+
+if not current_player_id():
+    render_player_login()
+    st.stop()
+
+
 browser_loaded = st.session_state.get(
     "browser_progress_loaded",
     False,
@@ -2920,11 +3071,25 @@ st.markdown(
 )
 
 
+with st.sidebar:
+    st.markdown(f"### Player: {current_player_name()}")
+    st.caption("Your progress and unfinished attempt are saved under this Player ID.")
+    if st.button("SWITCH PLAYER", use_container_width=True):
+        clear_runtime_game_state()
+        st.session_state.pop("player_id", None)
+        st.session_state.pop("player_name", None)
+        st.query_params.clear()
+        st.rerun()
+
+
 def show_top_bar():
     top_bar_html = (
         '<div class="top-bar">'
         '<div>FIRST AID HEROES</div>'
         '<div>'
+        f'<span class="status-pill">'
+        f'Player: {current_player_name()}'
+        f'</span>'
         f'<span class="status-pill">'
         f'Score: {st.session_state.score}'
         f'</span>'
