@@ -2354,36 +2354,52 @@ function currentSequence() {{
         }});
 }}
 
-function getParentAppUrl() {{
+function getParentAppAction() {{
     /*
-    document.referrer is the main Streamlit page that created this iframe.
-    Using it avoids sending the player to the iframe component URL.
+    Use the referring Streamlit page as the form destination.
+    We do not access window.top.location because Streamlit component
+    iframes may block that operation on deployed apps.
     */
     try {{
         if (document.referrer) {{
-            return new URL(document.referrer);
+            const referrerUrl = new URL(document.referrer);
+            return referrerUrl.origin + referrerUrl.pathname;
         }}
     }} catch (error) {{
         console.error(error);
     }}
 
-    return new URL("/", window.location.origin);
+    return "/";
+}}
+
+function submitParentForm(parameters) {{
+    const form = document.createElement("form");
+    form.method = "GET";
+    form.action = getParentAppAction();
+    form.target = "_top";
+    form.style.display = "none";
+
+    Object.entries(parameters).forEach(([name, value]) => {{
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = String(value);
+        form.appendChild(input);
+    }});
+
+    document.body.appendChild(form);
+    form.submit();
 }}
 
 function openParentScreen(screenName, extraParams = {{}}) {{
     try {{
-        const targetUrl = getParentAppUrl();
-        targetUrl.search = "";
-        targetUrl.searchParams.set("screen", screenName);
-        targetUrl.searchParams.set(
-            "level",
-            Object.prototype.hasOwnProperty.call(extraParams, "level")
+        message.textContent = "Opening page...";
+        submitParentForm({{
+            screen: screenName,
+            level: Object.prototype.hasOwnProperty.call(extraParams, "level")
                 ? String(extraParams.level)
                 : String({level_index})
-        );
-
-        message.textContent = "Opening page...";
-        window.top.location.href = targetUrl.toString();
+        }});
     }} catch (error) {{
         console.error(error);
         message.textContent = "Unable to open the requested page.";
@@ -2407,17 +2423,12 @@ function encodePayloadForUrl(payload) {{
 
 function submitToStreamlit(payload) {{
     try {{
-        const targetUrl = getParentAppUrl();
-        targetUrl.search = "";
-        targetUrl.searchParams.set("screen", "puzzle");
-        targetUrl.searchParams.set("level", String({level_index}));
-        targetUrl.searchParams.set(
-            "puzzle_submit",
-            encodePayloadForUrl(payload)
-        );
-
         message.textContent = "Checking your answers...";
-        window.top.location.href = targetUrl.toString();
+        submitParentForm({{
+            screen: "puzzle",
+            level: String({level_index}),
+            puzzle_submit: encodePayloadForUrl(payload)
+        }});
     }} catch (error) {{
         console.error(error);
         message.textContent =
