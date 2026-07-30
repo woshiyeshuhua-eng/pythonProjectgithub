@@ -2150,7 +2150,7 @@ def render_custom_image_puzzle():
     <div id="slots" class="slots"></div>
 
     <div class="controls">
-        <a id="backLink" class="control-link" href="/?screen=map" target="_parent">BACK</a>
+        <button id="backBtn" class="control-link" type="button">BACK</button>
         <button id="restartBtn">RESTART</button>
         <button id="doneBtn">DONE</button>
     </div>
@@ -2354,32 +2354,42 @@ function currentSequence() {{
         }});
 }}
 
-function submitToStreamlit(payload) {{
-    const jsonText = JSON.stringify(payload);
-
+function openParentScreen(screenName, extraParams = {{}}) {{
     try {{
-        /*
-        Save the completed puzzle where the main Streamlit page can read it.
-        The Python side checks this value every second and opens the result
-        page automatically.
-        */
-        window.parent.localStorage.setItem(
-            "first_aid_heroes_pending_puzzle_result",
-            jsonText
-        );
+        const parentUrl = new URL(window.parent.location.href);
+        parentUrl.search = "";
+        parentUrl.searchParams.set("screen", screenName);
+
+        Object.entries(extraParams).forEach(([key, value]) => {{
+            parentUrl.searchParams.set(key, String(value));
+        }});
+
+        window.parent.location.href = parentUrl.toString();
+    }} catch (error) {{
+        message.textContent = "Unable to open the requested page.";
+        console.error(error);
+    }}
+}}
+
+function submitToStreamlit(payload) {{
+    try {{
+        const jsonText = JSON.stringify(payload);
+        const encodedPayload = btoa(
+            unescape(encodeURIComponent(jsonText))
+        )
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/g, "");
 
         message.textContent = "Checking your answers...";
 
-        setTimeout(() => {{
-            try {{
-                window.parent.location.reload();
-            }} catch (reloadError) {{
-                console.error(reloadError);
-            }}
-        }}, 180);
+        openParentScreen("puzzle", {{
+            level: {level_index},
+            puzzle_submit: encodedPayload
+        }});
     }} catch (error) {{
         message.textContent =
-            "Unable to submit the result. Please refresh and try again.";
+            "Unable to submit the result. Please try again.";
         console.error(error);
     }}
 }}
@@ -2418,6 +2428,10 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
         elapsed,
         attempt_id: "{attempt_id}"
     }});
+}});
+
+document.getElementById("backBtn").addEventListener("click", () => {{
+    openParentScreen("map");
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
@@ -2500,6 +2514,7 @@ if custom_submit_value:
 
         payload = json.loads(decoded)
         st.query_params.pop("puzzle_submit", None)
+        st.session_state.screen = "puzzle"
         submit_custom_result(payload)
 
     except Exception as error:
@@ -4054,17 +4069,17 @@ elif screen == "result":
                     "has been saved."
                 )
 
-            home_column, map_column, next_column = (
+            retry_column, map_column, next_column = (
                 st.columns(3)
             )
 
-            with home_column:
+            with retry_column:
                 if st.button(
-                    "HOME",
-                    key="passed_result_home",
+                    "TRY AGAIN",
+                    key="passed_result_retry",
                     use_container_width=True,
                 ):
-                    navigate("home")
+                    start_puzzle()
 
             with map_column:
                 if st.button(
