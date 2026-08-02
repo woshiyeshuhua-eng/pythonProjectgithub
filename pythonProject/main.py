@@ -1379,16 +1379,21 @@ def find_image_path(filename_without_extension):
         L1_E_2.png
         L1_M_5.png
         L1_H_3.png
-
-    Popup questions are NOT determined by the filename.
-    They are linked by the internal card ID (trigger),
-    so you can safely rename your images to the format above.
     """
 
+    # Check in the main directory first
     for extension in (".png", ".jpg", ".jpeg", ".webp"):
         candidate = BASE_DIR / f"{filename_without_extension}{extension}"
         if candidate.exists():
             return candidate
+
+    # Then check in an 'images' subfolder
+    images_dir = BASE_DIR / "images"
+    if images_dir.exists():
+        for extension in (".png", ".jpg", ".jpeg", ".webp"):
+            candidate = images_dir / f"{filename_without_extension}{extension}"
+            if candidate.exists():
+                return candidate
 
     return None
 
