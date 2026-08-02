@@ -1263,10 +1263,15 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Easy uses 4 slots. Medium and Hard use 6 slots for Level 1."""
+    """Easy uses 4 slots. Medium uses 6 slots. Hard uses 8 slots for Level 1."""
 
     if int(level_index) == 0:
-        return 4 if difficulty == "Easy" else 6
+        if difficulty == "Easy":
+            return 4
+        elif difficulty == "Hard":
+            return 8
+        else:  # Medium
+            return 6
 
     return 6
 
@@ -1355,7 +1360,7 @@ def card_html(level_index, difficulty, level, card_id):
         f'<img src="{image_uri}" alt="{card_id}" '
         f'style="width:150px;max-width:100%;height:150px;'
         f'object-fit:contain;border-radius:10px;display:block;margin:auto;">'
-        f'<div style="font-size:0.85rem;text-align:center;margin-top:5px;">'
+        f'<div style="font-size:0.85rem;text-align:center;margin-top:8px;font-weight:700;color:#202124;background:#fffaf0;padding:4px 8px;border-radius:6px;border:2px solid #202124;">'
         f'{description}</div>{hidden_id}</div>'
     )
 
@@ -2163,8 +2168,20 @@ def render_custom_image_puzzle():
             unsafe_allow_html=True,
         )
 
+        # Get the description text for this card
+        description = level["cards"].get(card_id, card_id)
+
         with st.container(key=container_key):
             st.image(image_path, width=image_width)
+            # Show description text below the image
+            st.markdown(
+                f"""
+                <div style="font-size:0.85rem;text-align:center;margin-top:6px;font-weight:700;color:#202124;background:#fffaf0;padding:4px 8px;border-radius:6px;border:2px solid #202124;">
+                {description}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
             button_label = "✓ SELECTED" if selected else "✓"
             if st.button(
                 button_label,
