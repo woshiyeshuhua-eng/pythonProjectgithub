@@ -2384,15 +2384,19 @@ function currentSequence() {{
 
 function openParentScreen(screenName, extraParams = {{}}) {{
     try {{
-        const params = new URLSearchParams();
-        params.set("screen", screenName);
+        // document.referrer contains the main Streamlit app URL.
+        // Using window.location.pathname here would point to the component iframe,
+        // so the Back button would not return to the real app page.
+        const appUrl = new URL(document.referrer || window.top.location.href);
+        appUrl.search = "";
+        appUrl.hash = "";
+        appUrl.searchParams.set("screen", screenName);
 
         Object.entries(extraParams).forEach(([key, value]) => {{
-            params.set(key, String(value));
+            appUrl.searchParams.set(key, String(value));
         }});
 
-        const targetUrl = window.location.pathname + "?" + params.toString();
-        window.top.location.href = targetUrl;
+        window.top.location.href = appUrl.toString();
     }} catch (error) {{
         message.textContent = "Unable to open the requested page.";
         console.error(error);
@@ -2459,9 +2463,8 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    openParentScreen("scenario", {{
-        level: {level_index}
-    }});
+    // Return to the progress map page (progress_map image screen).
+    openParentScreen("map");
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
