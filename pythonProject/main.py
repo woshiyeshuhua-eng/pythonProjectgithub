@@ -227,7 +227,7 @@ LEVELS = [
             {
                 "id": "medium_compress",
                 "difficulty": "Medium",
-                "trigger": "L1_M_5",
+                "trigger": "L1_M_1",
                 "question": "What compress do you use?",
                 "options": ["Warm", "Hot", "Cold", "Cool"],
                 "correct": "Cool",
@@ -502,23 +502,53 @@ LEVELS = [
             "A chemical splashes onto a student's hand "
             "during an experiment."
         ),
-        "correct_cards": ["L5-1", "L5-2", "L5-3", "L5-4", "L5-5", "L5-6"],
-        "wrong_cards": ["L5-W1", "L5-W2", "L5-W3"],
+        "correct_cards": ["L4_E_1", "L4_E_2", "L4_E_3", "L4_E_4", "L4_M_1", "L4_M_2", "L4_M_3", "L4_M_4", "L4_M_5", "L4_M_6", "L4_H_1", "L4_H_2", "L4_H_3", "L4_H_4", "L4_H_5", "L4_H_6", "L4_H_7", "L4_H_8"],
+        "wrong_cards": ["L4_H_W1", "L4_H_W2"],
         "cards": {
-            "L5-1": "Chemical splashes onto the student's hand",
-            "L5-2": "Student moves away from the chemical",
-            "L5-3": "Teacher is informed immediately",
-            "L5-4": "The affected area is rinsed with running water",
-            "L5-5": "The area is rinsed before it is covered",
-            "L5-6": "Teacher continues to monitor the student",
-            "L5-W1": "Another chemical is applied",
-            "L5-W2": "The area is covered before rinsing",
-            "L5-W3": "The chemical is wiped using bare hands",
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
+            "L4_E_1": "Chemical splashes on hand",
+            "L4_E_2": "Move away from the chemical",
+            "L4_E_3": "Inform the teacher immediately",
+            "L4_E_4": "Rinse with running water",
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
+            "L4_M_1": "Chemical splashes on hand",
+            "L4_M_2": "Move away from the chemical",
+            "L4_M_3": "Inform the teacher immediately",
+            "L4_M_4": "Rinse with running water",
+            "L4_M_5": "Rinse before covering",
+            "L4_M_6": "Teacher monitors the student",
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
+            "L4_H_1": "Chemical splashes on hand",
+            "L4_H_2": "Move away from the chemical",
+            "L4_H_3": "Inform the teacher immediately",
+            "L4_H_4": "Rinse with running water",
+            "L4_H_5": "Rinse before covering",
+            "L4_H_6": "Teacher monitors the student",
+            "L4_H_7": "Remove contaminated clothing",
+            "L4_H_8": "Continue rinsing for 15-20 minutes",
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
+            "L4_H_W1": "Apply another chemical",
+            "L4_H_W2": "Cover before rinsing",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "chemical_rinse",
-                "trigger": "L5-4",
+                "id": "easy_chemical_rinse",
+                "difficulty": "Easy",
+                "trigger": "L4_E_4",
                 "question": "What should be used to rinse the chemical?",
                 "options": [
                     "Running water",
@@ -526,15 +556,57 @@ LEVELS = [
                 ],
                 "correct": "Running water",
             },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "chemical_cover",
-                "trigger": "L5-5",
+                "id": "medium_chemical_cover",
+                "difficulty": "Medium",
+                "trigger": "L4_M_5",
                 "question": "Should the area be covered before rinsing?",
                 "options": [
                     "No, rinse first",
                     "Yes, cover it immediately",
                 ],
                 "correct": "No, rinse first",
+            },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
+            {
+                "id": "hard_chemical_remove",
+                "difficulty": "Hard",
+                "trigger": "L4_H_7",
+                "question": "What should you do with contaminated clothing?",
+                "options": [
+                    "Remove it carefully",
+                    "Leave it on",
+                ],
+                "correct": "Remove it carefully",
+            },
+            {
+                "id": "hard_chemical_time",
+                "difficulty": "Hard",
+                "trigger": "L4_H_8",
+                "question": "How long should you rinse the chemical?",
+                "options": [
+                    "15-20 minutes",
+                    "5-10 minutes",
+                ],
+                "correct": "15-20 minutes",
+            },
+            {
+                "id": "hard_chemical_teacher",
+                "difficulty": "Hard",
+                "trigger": "L4_H_3",
+                "question": "Who should be informed immediately?",
+                "options": [
+                    "The teacher",
+                    "A friend",
+                ],
+                "correct": "The teacher",
             },
         ],
         "hint": (
@@ -545,33 +617,111 @@ LEVELS = [
         "title": "Burn Injury",
         "setting": "School Canteen",
         "story": "A student accidentally touches a hot surface and suffers a minor burn.",
-        "correct_cards": ["L5-1", "L5-2", "L5-3", "L5-4", "L5-5", "L5-6"],
-        "wrong_cards": ["L5-W1", "L5-W2", "L5-W3"],
+        "correct_cards": ["L5_E_1", "L5_E_2", "L5_E_3", "L5_E_4", "L5_M_1", "L5_M_2", "L5_M_3", "L5_M_4", "L5_M_5", "L5_M_6", "L5_H_1", "L5_H_2", "L5_H_3", "L5_H_4", "L5_H_5", "L5_H_6", "L5_H_7", "L5_H_8"],
+        "wrong_cards": ["L5_H_W1", "L5_H_W2"],
         "cards": {
-            "L5-1": "Move the student away from the heat source",
-            "L5-2": "Inform a teacher or responsible adult",
-            "L5-3": "Cool the burn under cool running water",
-            "L5-4": "Remove nearby jewellery if it is safe",
-            "L5-5": "Cover the burn loosely with a clean dressing",
-            "L5-6": "Continue monitoring and seek medical help if needed",
-            "L5-W1": "Put ice directly on the burn",
-            "L5-W2": "Apply toothpaste or butter",
-            "L5-W3": "Break any blisters",
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
+            "L5_E_1": "Move away from heat source",
+            "L5_E_2": "Inform a teacher",
+            "L5_E_3": "Cool the burn with running water",
+            "L5_E_4": "Seek medical help if needed",
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
+            "L5_M_1": "Move away from heat source",
+            "L5_M_2": "Inform a teacher",
+            "L5_M_3": "Cool the burn with running water",
+            "L5_M_4": "Seek medical help if needed",
+            "L5_M_5": "Remove nearby jewellery",
+            "L5_M_6": "Cover the burn loosely",
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
+            "L5_H_1": "Move away from heat source",
+            "L5_H_2": "Inform a teacher",
+            "L5_H_3": "Cool the burn with running water",
+            "L5_H_4": "Seek medical help if needed",
+            "L5_H_5": "Remove nearby jewellery",
+            "L5_H_6": "Cover the burn loosely",
+            "L5_H_7": "Cool for 10-15 minutes",
+            "L5_H_8": "Monitor the student",
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
+            "L5_H_W1": "Put ice directly on the burn",
+            "L5_H_W2": "Apply toothpaste or butter",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "burn_water",
-                "trigger": "L5-3",
+                "id": "easy_burn_water",
+                "difficulty": "Easy",
+                "trigger": "L5_E_3",
                 "question": "What should be used to cool a minor burn?",
-                "options": ["Cool running water", "Ice directly on the skin"],
+                "options": [
+                    "Cool running water",
+                    "Ice directly on the skin",
+                ],
                 "correct": "Cool running water",
             },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "burn_cover",
-                "trigger": "L5-5",
+                "id": "medium_burn_cover",
+                "difficulty": "Medium",
+                "trigger": "L5_M_6",
                 "question": "How should the burn be covered?",
-                "options": ["Loosely with a clean dressing", "Tightly with a dirty cloth"],
+                "options": [
+                    "Loosely with a clean dressing",
+                    "Tightly with a dirty cloth",
+                ],
                 "correct": "Loosely with a clean dressing",
+            },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
+            {
+                "id": "hard_burn_cool_time",
+                "difficulty": "Hard",
+                "trigger": "L5_H_7",
+                "question": "How long should the burn be cooled?",
+                "options": [
+                    "10-15 minutes",
+                    "5-10 minutes",
+                ],
+                "correct": "10-15 minutes",
+            },
+            {
+                "id": "hard_burn_jewellery",
+                "difficulty": "Hard",
+                "trigger": "L5_H_5",
+                "question": "What should be removed near the burn?",
+                "options": [
+                    "Jewellery",
+                    "Clothing only",
+                ],
+                "correct": "Jewellery",
+            },
+            {
+                "id": "hard_burn_monitor",
+                "difficulty": "Hard",
+                "trigger": "L5_H_8",
+                "question": "What should you do after treating the burn?",
+                "options": [
+                    "Monitor the student",
+                    "Leave the student alone",
+                ],
+                "correct": "Monitor the student",
             },
         ],
         "hint": "Cool the burn with cool running water and cover it loosely with a clean dressing.",
@@ -1491,13 +1641,21 @@ def find_image_path(filename_without_extension):
 
 def image_path_for_card(level_index, difficulty, card_id):
     """
-    Convert an internal card ID such as L1-2 or L1-W1 into:
-    L1_E_2, L1_M_2, L1_H_2, or L1_H_W1.
+    Convert an internal card ID such as L1_E_1 or L1_H_W1 into:
+    L1_E_1.png, L1_M_5.png, L1_H_3.png, or L1_H_W1.png.
     """
 
     level_number = int(level_index) + 1
     code = difficulty_code(difficulty)
-    suffix = card_id.split("-", 1)[1]
+    
+    # Extract the suffix after the underscore
+    # L1_E_1 -> E_1, L1_H_W1 -> H_W1
+    parts = card_id.split("_")
+    if len(parts) >= 3:
+        suffix = "_".join(parts[1:])  # Get everything after level prefix
+    else:
+        suffix = parts[-1] if len(parts) > 1 else card_id
+    
     return find_image_path(f"L{level_number}_{code}_{suffix}")
 
 
