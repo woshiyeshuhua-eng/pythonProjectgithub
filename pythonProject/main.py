@@ -6,6 +6,7 @@ import re
 import time
 import urllib.parse
 from pathlib import Path
+import os
 
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
@@ -19,6 +20,13 @@ st.set_page_config(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# DEBUG: Print what files are in the directory
+print("=" * 50)
+print(f"BASE_DIR: {BASE_DIR}")
+print(f"Files in BASE_DIR: {[f for f in os.listdir(BASE_DIR) if f.endswith('.png')]}")
+print("=" * 50)
+
 BROWSER_STORAGE_PREFIX = "first_aid_heroes_progress_v3"
 PLAYER_QUERY_KEY = "player"
 PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
@@ -1381,20 +1389,39 @@ def find_image_path(filename_without_extension):
         L1_H_3.png
     """
 
-    # Check in the main directory first
-    for extension in (".png", ".jpg", ".jpeg", ".webp"):
-        candidate = BASE_DIR / f"{filename_without_extension}{extension}"
-        if candidate.exists():
-            return candidate
+    # Get the current working directory
+    cwd = Path.cwd()
+    
+    # Try multiple possible locations
+    possible_locations = [
+        BASE_DIR,  # Same folder as main.py
+        cwd,  # Current working directory
+        Path("/mount/src/pythonProjectgithub/pythonProject"),  # Streamlit Cloud path
+        Path("/mount/src/pythonProjectgithub"),  # Streamlit Cloud root
+        Path("/app"),  # Another common Streamlit Cloud path
+        Path("/app/pythonProject"),  # Another common Streamlit Cloud path
+    ]
 
-    # Then check in an 'images' subfolder
-    images_dir = BASE_DIR / "images"
-    if images_dir.exists():
-        for extension in (".png", ".jpg", ".jpeg", ".webp"):
-            candidate = images_dir / f"{filename_without_extension}{extension}"
+    # Also try to find the images folder anywhere in the current directory tree
+    for root in [BASE_DIR, cwd] + list(BASE_DIR.parents) + list(cwd.parents):
+        if (root / "images").exists():
+            possible_locations.append(root / "images")
+        if (root / "assets").exists():
+            possible_locations.append(root / "assets")
+
+    # Try all possible extensions and cases
+    extensions = [".png", ".PNG", ".jpg", ".JPG", ".jpeg", ".JPEG", ".webp", ".WEBP"]
+    
+    for location in possible_locations:
+        if not location or not location.exists():
+            continue
+        for extension in extensions:
+            candidate = location / f"{filename_without_extension}{extension}"
             if candidate.exists():
+                print(f"✅ Found image: {candidate}")
                 return candidate
 
+    print(f"❌ Image not found: {filename_without_extension}")
     return None
 
 
