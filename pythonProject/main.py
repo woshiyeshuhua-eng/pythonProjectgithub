@@ -2184,10 +2184,10 @@ def render_custom_image_puzzle():
         return image_path_for_card(level_index, difficulty, card_id)
 
     def render_clickable_picture(card_id, location_key, compact=False):
-        """Render an image-only comic card that is clickable anywhere.
+        """Render a centred scenario card that can be clicked anywhere.
 
-        A transparent native Streamlit button covers the full card, so the
-        player clicks the picture itself instead of a separate black button.
+        The native Streamlit button is fully transparent and covers the card,
+        so no black selection bar is visible below the picture.
         """
 
         image_path = card_image(card_id)
@@ -2213,14 +2213,20 @@ def render_custom_image_puzzle():
             <style>
             .st-key-{container_key} {{
                 position: relative;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-start;
+                width: 100%;
                 background: {background_colour};
                 border: 5px solid {border_colour};
                 border-radius: 16px;
                 box-shadow: 5px 5px 0 #202124;
-                padding: 9px;
-                margin-bottom: 12px;
+                padding: 10px;
+                margin: 0 auto 14px auto;
                 overflow: visible;
                 transition: transform 0.12s ease;
+                text-align: center;
             }}
 
             .st-key-{container_key}:hover {{
@@ -2228,61 +2234,94 @@ def render_custom_image_puzzle():
             }}
 
             .st-key-{container_key} [data-testid="stImage"] {{
-                display: flex;
+                width: 100%;
+                display: flex !important;
+                align-items: center;
                 justify-content: center;
-                margin: 0;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                text-align: center;
                 pointer-events: none;
             }}
 
+            .st-key-{container_key} [data-testid="stImage"] > div {{
+                width: 100%;
+                display: flex;
+                justify-content: center;
+            }}
+
             .st-key-{container_key} [data-testid="stImage"] img {{
+                display: block;
+                margin: 0 auto !important;
                 border-radius: 10px;
                 object-fit: contain;
+                max-width: 100%;
                 max-height: {image_height}px;
                 pointer-events: none;
             }}
 
             .st-key-{container_key} .scenario-caption {{
-                text-align: center;
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center !important;
                 font-weight: 800;
                 font-size: {'0.78rem' if compact else '0.88rem'};
-                line-height: 1.18;
-                min-height: 2.3em;
-                margin: 5px 2px 3px;
+                line-height: 1.2;
+                min-height: 2.5em;
+                margin: 7px auto 2px auto;
+                padding: 0 4px;
                 pointer-events: none;
             }}
 
-            /* Cover the complete card with a transparent native button. */
+            /*
+            The native Streamlit button covers the whole card but is fully
+            invisible. opacity:0 removes the black button and its text.
+            */
             .st-key-{container_key} div.stButton {{
-                position: absolute;
-                inset: 0;
-                z-index: 20;
-                margin: 0 !important;
-                padding: 0 !important;
-            }}
-
-            .st-key-{container_key} div.stButton > button {{
-                position: absolute;
-                inset: 0;
+                position: absolute !important;
+                inset: 0 !important;
                 width: 100% !important;
                 height: 100% !important;
-                min-height: 100% !important;
+                z-index: 20 !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 border: 0 !important;
+                background: transparent !important;
+            }}
+
+            .st-key-{container_key} div.stButton > button {{
+                position: absolute !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                min-height: 100% !important;
+                max-height: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                outline: 0 !important;
                 border-radius: 12px !important;
                 background: transparent !important;
                 box-shadow: none !important;
                 color: transparent !important;
                 font-size: 0 !important;
+                line-height: 0 !important;
+                opacity: 0 !important;
                 cursor: pointer !important;
             }}
 
             .st-key-{container_key} div.stButton > button:hover,
-            .st-key-{container_key} div.stButton > button:focus {{
-                background: rgba(255, 202, 40, 0.10) !important;
+            .st-key-{container_key} div.stButton > button:focus,
+            .st-key-{container_key} div.stButton > button:active {{
+                background: transparent !important;
                 border: 0 !important;
+                outline: 0 !important;
                 box-shadow: none !important;
                 color: transparent !important;
+                opacity: 0 !important;
+                transform: none !important;
             }}
 
             .st-key-{container_key} .selected-badge {{
@@ -2313,10 +2352,18 @@ def render_custom_image_puzzle():
                 '<div class="selected-badge">✓</div>',
                 unsafe_allow_html=True,
             )
-            st.image(image_path, width=image_width)
+
+            image_column_left, image_column, image_column_right = st.columns(
+                [0.05, 0.90, 0.05]
+            )
+            with image_column:
+                st.image(image_path, width=image_width)
 
             caption = card_description_for(
-                level_index, level, difficulty, card_id
+                level_index,
+                level,
+                difficulty,
+                card_id,
             )
             st.markdown(
                 f'<div class="scenario-caption">{caption}</div>',
@@ -2326,7 +2373,7 @@ def render_custom_image_puzzle():
             if st.button(
                 "Select this picture",
                 key=button_key,
-                help="Click to select this picture",
+                help="Click this picture to select it",
                 use_container_width=True,
             ):
                 current = st.session_state.get("selected_picture_card")
