@@ -93,7 +93,7 @@ def clear_runtime_game_state():
         "custom_attempt_id", "selected_picture_card",
         "pending_browser_action", "pending_browser_payload",
         "browser_action_revision", "browser_load_attempts",
-        "browser_storage_ready",
+        "browser_storage_ready", "open_home_after_login",
     ]
 
     for key in keys_to_clear:
@@ -153,6 +153,12 @@ def render_player_login():
             clear_runtime_game_state()
             st.session_state.player_id = clean_id
             st.session_state.player_name = clean_name or clean_id
+
+            # A fresh login should always open the main page. The unfinished
+            # attempt remains saved and can still be restored when the player
+            # starts that level again.
+            st.session_state.open_home_after_login = True
+
             st.query_params.clear()
             st.query_params[PLAYER_QUERY_KEY] = clean_id
             st.query_params["player_name"] = clean_name or clean_id
@@ -965,6 +971,7 @@ def initialise_state(saved_progress):
         "picture_component_revision": None,
         "browser_load_attempts": 0,
         "browser_storage_ready": True,
+        "open_home_after_login": False,
     }
 
     for key, value in defaults.items():
@@ -1120,7 +1127,11 @@ def initialise_state(saved_progress):
                     str(restored_selected) if restored_selected else None
                 )
 
-                st.session_state.screen = "puzzle"
+                # Keep the attempt data ready, but do not force the player
+                # straight back into the puzzle after a fresh login.
+                if not st.session_state.get("open_home_after_login", False):
+                    st.session_state.screen = "puzzle"
+
                 st.session_state.sort_key += 1
 
         except (
@@ -2474,6 +2485,21 @@ else:
     )
 
 flush_pending_browser_action()
+
+
+# After entering a Player ID, always show the main page first instead of
+# reopening the last puzzle screen. The saved unfinished attempt is preserved.
+if st.session_state.get("open_home_after_login", False):
+    st.session_state.screen = "home"
+    st.session_state.open_home_after_login = False
+
+    active_player_id = current_player_id()
+    active_player_name = current_player_name()
+
+    st.query_params.clear()
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+    st.query_params["player_name"] = active_player_name
+    st.query_params["screen"] = "home"
 
 
 query_screen = st.query_params.get(
