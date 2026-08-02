@@ -92,7 +92,8 @@ def clear_runtime_game_state():
         "slot_warning", "browser_progress_loaded", "attempt_restored",
         "custom_attempt_id", "selected_picture_card",
         "pending_browser_action", "pending_browser_payload",
-        "browser_action_revision",
+        "browser_action_revision", "browser_load_attempts",
+        "browser_storage_ready",
     ]
 
     for key in keys_to_clear:
@@ -181,6 +182,7 @@ LEVELS = [
         },
         "decisions": [
             {
+                # L1_E_2: time to pinch the nose
                 "id": "easy_pinching_time",
                 "difficulty": "Easy",
                 "trigger": "L1-2",
@@ -197,6 +199,7 @@ LEVELS = [
                 "correct": "Cool",
             },
             {
+                # L1_H_3: where to pinch the nose
                 "id": "hard_pinching_place",
                 "difficulty": "Hard",
                 "trigger": "L1-3",
@@ -809,6 +812,12 @@ def build_progress_payload():
 def save_progress():
     """Queue an automatic save in this browser's Local Storage."""
 
+    # If browser storage could not be read after login, avoid replacing an
+    # existing save with a blank profile. The active Streamlit session still
+    # keeps the player's current progress until storage becomes available.
+    if st.session_state.get("browser_storage_ready", True) is False:
+        return
+
     st.session_state.pending_browser_action = "save"
     st.session_state.pending_browser_payload = (
         build_progress_payload()
@@ -886,6 +895,7 @@ def flush_pending_browser_action():
 def reset_saved_progress():
     """Reset progress only for the current browser user."""
 
+    st.session_state.browser_storage_ready = True
     st.session_state.score = 0
     st.session_state.completed_modes = set()
     st.session_state.mode_stars = {}
@@ -953,6 +963,8 @@ def initialise_state(saved_progress):
         "attempt_restored": False,
         "custom_attempt_id": "",
         "picture_component_revision": None,
+        "browser_load_attempts": 0,
+        "browser_storage_ready": True,
     }
 
     for key, value in defaults.items():
@@ -1392,7 +1404,7 @@ def start_puzzle():
 
     layout = [
         {
-            "header": "CARD TRAY",
+            "header": "STORY TRAY",
             "items": list(card_ids),
         }
     ]
@@ -1402,7 +1414,7 @@ def start_puzzle():
     for slot_number in range(1, slot_count + 1):
         layout.append(
             {
-                "header": f"SLOT {slot_number}",
+                "header": f"SCENARIO {slot_number}",
                 "items": [],
             }
         )
@@ -1795,6 +1807,10 @@ def evaluate_level():
 
     st.session_state.show_hint = False
 
+    # Save the completed mode immediately before opening the result page.
+    save_progress()
+    flush_pending_browser_action()
+
     navigate(
         "result",
         level_index,
@@ -2020,7 +2036,7 @@ function info(id){return (args.cards||[]).find(x=>x.id===id)||{id:id,label:id,im
 function refreshSelection(){document.querySelectorAll('.card').forEach(card=>{card.classList.toggle('selected',card.dataset.id===selected)})}
 function cardNode(id){const c=info(id),n=document.createElement('div');n.className='card'+(selected===id?' selected':'');n.draggable=true;n.dataset.id=id;if(c.image){const im=document.createElement('img');im.src=c.image;im.alt=c.label;im.draggable=false;n.appendChild(im)}else{const m=document.createElement('div');m.className='missing';m.textContent=id+' image missing';n.appendChild(m)}const l=document.createElement('div');l.className='label';l.textContent=c.label;n.appendChild(l);n.addEventListener('click',e=>{e.stopPropagation();selected=(selected===id?null:id);refreshSelection()});n.addEventListener('dragstart',e=>{dragged=id;selected=id;refreshSelection();e.dataTransfer.setData('text/plain',id);e.dataTransfer.effectAllowed='move'});n.addEventListener('dragend',()=>{dragged=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});return n}
 function moveCard(id,index){if(!id)return;let from=-1;layout.forEach((c,i)=>{if(c.items.includes(id))from=i});if(from<0||from===index){selected=null;render();return}if(index>0&&layout[index].items.length&&!layout[index].items.includes(id)){layout[0].items.push(layout[index].items[0]);layout[index].items=[]}layout[from].items=layout[from].items.filter(x=>x!==id);layout[index].items.push(id);selected=null;render();send({layout:layout,moved_card:id,revision:Date.now()})}function target(el,index){el.addEventListener('click',()=>{if(selected)moveCard(selected,index)});el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('dragover')});el.addEventListener('dragleave',()=>el.classList.remove('dragover'));el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain')||dragged||selected;moveCard(id,index)})}
-function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const help=document.createElement('div');help.className='help';help.textContent='Click a picture to select it, then click the correct slot. You may also drag the picture.';shell.appendChild(help);const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='CARD TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
+function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const help=document.createElement('div');help.className='help';help.textContent='Click a picture to select it, then click the correct slot. You may also drag the picture.';shell.appendChild(help);const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='STORY TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
 window.addEventListener('message',e=>{if(e.data&&e.data.type==='streamlit:render'){args=e.data.args||{};layout=JSON.parse(JSON.stringify(args.layout||[]));render()}});
 post('streamlit:componentReady',{apiVersion:1});setHeight();
 </script></body></html>''',
@@ -2264,10 +2280,10 @@ def render_custom_image_puzzle():
         save_progress()
         st.rerun()
 
-    # ---------------- HORIZONTAL CARD TRAY ----------------
+    # ---------------- HORIZONTAL STORY TRAY ----------------
     st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
-    st.markdown("### CARD TRAY")
-    st.caption("Press the ✓ button below a picture, then press PLACE HERE in the correct story slot.")
+    st.markdown("### STORY TRAY")
+    st.caption("Press the ✓ button below a picture, then press PLACE HERE in the correct scenario.")
 
     tray_ids = list(st.session_state.layout[0].get("items", []))
 
@@ -2286,11 +2302,11 @@ def render_custom_image_puzzle():
 
     selected_card = st.session_state.get("selected_picture_card")
     if selected_card:
-        st.success("Picture selected. Choose a story slot below.")
+        st.success("Picture selected. Choose a scenario below.")
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ---------------- SMALLER STORY SLOTS ----------------
-    st.markdown("### STORY SLOTS")
+    st.markdown("### STORY SEQUENCE")
     slot_total = len(st.session_state.layout) - 1
 
     for row_start in range(1, slot_total + 1, 3):
@@ -2304,7 +2320,7 @@ def render_custom_image_puzzle():
             with slot_columns[offset]:
                 st.markdown(
                     f"<div class='comic-panel' style='padding:12px;margin-bottom:12px;'>"
-                    f"<h3 style='margin:0 0 7px 0;'>SLOT {slot_index}</h3>",
+                    f"<h3 style='margin:0 0 7px 0;'>SCENARIO {slot_index}</h3>",
                     unsafe_allow_html=True,
                 )
 
@@ -2421,21 +2437,33 @@ browser_loaded = st.session_state.get(
 if not browser_loaded:
     browser_value = read_browser_progress()
 
-    # streamlit-js-eval may temporarily return None on Streamlit Cloud,
-    # especially after navigation creates a new page session. Do not stop
-    # the whole app on a permanent loading screen. Continue with a clean
-    # state for this session; saved progress can still be written normally
-    # after the app has loaded.
+    # streamlit-js-eval often returns None on its first render in
+    # Streamlit Community Cloud. Retry a few times instead of treating
+    # None as a brand-new player, because doing so can hide or overwrite
+    # previously completed levels.
     if browser_value is None:
-        initialise_state(
-            empty_progress()
+        load_attempts = int(
+            st.session_state.get("browser_load_attempts", 0)
         )
+
+        if load_attempts < 4:
+            st.session_state.browser_load_attempts = load_attempts + 1
+            st.info("Loading your saved progress...")
+            time.sleep(0.35)
+            st.rerun()
+
+        # After several failed reads, allow the game to open, but mark browser
+        # storage as not ready. Normal session progress still works and we
+        # avoid overwriting an existing browser save until storage responds.
+        clean_progress = empty_progress()
+        initialise_state(clean_progress)
+        st.session_state.browser_storage_ready = False
     else:
         initialise_state(
-            sanitise_progress(
-                browser_value
-            )
+            sanitise_progress(browser_value)
         )
+        st.session_state.browser_load_attempts = 0
+        st.session_state.browser_storage_ready = True
 
 else:
     # State is already present in the active Streamlit session. Passing
@@ -3888,7 +3916,7 @@ elif screen == "puzzle":
         (
             '<div class="comic-panel">'
             '<div class="comic-label">'
-            'ARRANGE THE STORY'
+            'CLICK AND DROP'
             '</div>'
             f'<h2>{level["title"]}</h2>'
             '<p>'
