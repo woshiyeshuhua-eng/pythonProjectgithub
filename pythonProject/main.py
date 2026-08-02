@@ -20,12 +20,147 @@ st.set_page_config(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-BROWSER_STORAGE_KEY = "first_aid_heroes_progress_v2"
+BROWSER_STORAGE_PREFIX = "first_aid_heroes_progress_v3"
+PLAYER_QUERY_KEY = "player"
 PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
 PUZZLE_NAV_STORAGE_KEY = "first_aid_heroes_pending_navigation"
 NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
 
+
+
+
+def normalise_player_id(value):
+    """Create a safe, consistent ID for one player profile."""
+
+    value = str(value or "").strip().lower()
+    value = re.sub(r"[^a-z0-9_-]+", "-", value)
+    value = re.sub(r"-+", "-", value).strip("-_")
+    return value[:40]
+
+
+def current_player_id():
+    """Return the active player ID for this browser session."""
+
+    return normalise_player_id(
+        st.session_state.get("player_id")
+        or st.query_params.get(PLAYER_QUERY_KEY, "")
+    )
+
+
+def current_player_name():
+    """Return the display name shown in the game UI."""
+
+    return str(
+        st.session_state.get("player_name")
+        or st.query_params.get("player_name", "")
+        or current_player_id()
+        or "Player"
+    )
+
+
+def browser_storage_key():
+    """Use a separate Local Storage key for every player profile."""
+
+    player_id = current_player_id()
+    return f"{BROWSER_STORAGE_PREFIX}::{player_id}"
+
+
+def game_query_url(screen_name, level_index=None):
+    """Build an in-app URL without losing the active player profile."""
+
+    query_values = {
+        PLAYER_QUERY_KEY: current_player_id(),
+        "player_name": current_player_name(),
+        "screen": str(screen_name),
+    }
+
+    if level_index is not None:
+        query_values["level"] = str(int(level_index))
+
+    return "?" + urllib.parse.urlencode(query_values)
+
+
+def clear_runtime_game_state():
+    """Remove game state before switching to another player."""
+
+    keys_to_clear = [
+        "screen", "selected_level", "difficulty", "score",
+        "completed_modes", "mode_stars", "layout", "previous_layout",
+        "previous_sequence", "moves", "start_time", "decision_answers",
+        "pending_decision", "result", "show_hint", "sort_key",
+        "slot_warning", "browser_progress_loaded", "attempt_restored",
+        "custom_attempt_id", "selected_picture_card",
+        "pending_browser_action", "pending_browser_payload",
+        "browser_action_revision",
+    ]
+
+    for key in keys_to_clear:
+        st.session_state.pop(key, None)
+
+
+def render_player_login():
+    """Ask each learner for a Player ID before loading their save."""
+
+    st.markdown(
+        """
+        <style>
+        .player-login-card {
+            max-width: 680px; margin: 70px auto 20px auto; padding: 28px;
+            background: #fffaf0; border: 5px solid #202124;
+            border-radius: 18px; box-shadow: 9px 9px 0 #202124;
+        }
+        .player-login-title {
+            font-size: 2.4rem; font-weight: 900; margin-bottom: 8px;
+        }
+        </style>
+        <div class="player-login-card">
+            <div class="player-login-title">FIRST AID HEROES</div>
+            <p>Enter your own Player ID to load your saved stars, score and unfinished attempt.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.form("player_login_form", clear_on_submit=False):
+        display_name = st.text_input(
+            "Player name",
+            placeholder="Example: Anna",
+            max_chars=30,
+        )
+        player_code = st.text_input(
+            "Player ID",
+            placeholder="Example: anna-01",
+            max_chars=40,
+            help=(
+                "Use the same Player ID next time to continue. "
+                "Each Player ID has a separate save on this browser."
+            ),
+        )
+        submitted = st.form_submit_button(
+            "LOAD MY GAME",
+            use_container_width=True,
+        )
+
+    if submitted:
+        clean_id = normalise_player_id(player_code)
+        clean_name = str(display_name or player_code).strip()[:30]
+
+        if len(clean_id) < 2:
+            st.error("Enter a Player ID with at least 2 letters or numbers.")
+        else:
+            clear_runtime_game_state()
+            st.session_state.player_id = clean_id
+            st.session_state.player_name = clean_name or clean_id
+            st.query_params.clear()
+            st.query_params[PLAYER_QUERY_KEY] = clean_id
+            st.query_params["player_name"] = clean_name or clean_id
+            st.rerun()
+
+    st.caption(
+        "Progress is saved separately for each Player ID in this browser. "
+        "Use the same device, browser and Player ID to continue."
+    )
 
 LEVELS = [
     {
@@ -319,7 +454,6 @@ def empty_progress():
         "mode_stars": {},
         "attempt": None,
         "last_screen": "home",
-        "previous_screen": "home",
         "selected_level": 0,
         "difficulty": "Easy",
     }
@@ -432,16 +566,6 @@ def sanitise_progress(raw_value):
         if last_screen not in allowed_screens:
             last_screen = "home"
 
-        previous_screen = str(
-            data.get(
-                "previous_screen",
-                "home",
-            )
-        )
-
-        if previous_screen not in allowed_screens:
-            previous_screen = "home"
-
         attempt = data.get(
             "attempt"
         )
@@ -458,7 +582,6 @@ def sanitise_progress(raw_value):
             "mode_stars": mode_stars,
             "attempt": attempt,
             "last_screen": last_screen,
-            "previous_screen": previous_screen,
             "selected_level": selected_level,
             "difficulty": difficulty,
         }
@@ -475,7 +598,7 @@ def read_browser_progress():
     """Read progress belonging only to the current browser."""
 
     storage_key_json = json.dumps(
-        BROWSER_STORAGE_KEY
+        browser_storage_key()
     )
 
     fallback_json = json.dumps(
@@ -490,7 +613,7 @@ def read_browser_progress():
             f"{fallback_json}"
         ),
         want_output=True,
-        key="load_first_aid_browser_progress",
+        key=f"load_first_aid_browser_progress_{current_player_id()}",
     )
 
 
@@ -623,6 +746,9 @@ def build_attempt_payload():
                 False,
             )
         ),
+        "selected_picture_card": st.session_state.get(
+            "selected_picture_card"
+        ),
     }
 
 
@@ -630,6 +756,9 @@ def build_progress_payload():
     """Create the complete save file for this browser user."""
 
     data = {
+        "player_id": current_player_id(),
+        "player_name": current_player_name(),
+        "saved_at": int(time.time()),
         "score": int(
             st.session_state.get(
                 "score",
@@ -653,12 +782,6 @@ def build_progress_payload():
         "last_screen": str(
             st.session_state.get(
                 "screen",
-                "home",
-            )
-        ),
-        "previous_screen": str(
-            st.session_state.get(
-                "previous_screen",
                 "home",
             )
         ),
@@ -722,7 +845,7 @@ def flush_pending_browser_action():
     )
 
     storage_key_json = json.dumps(
-        BROWSER_STORAGE_KEY
+        browser_storage_key()
     )
 
     if action == "save":
@@ -775,6 +898,7 @@ def reset_saved_progress():
     st.session_state.pending_decision = None
     st.session_state.result = None
     st.session_state.show_hint = False
+    st.session_state.selected_picture_card = None
     st.session_state.screen = "home"
 
     st.session_state.pending_browser_action = "reset"
@@ -806,7 +930,6 @@ def initialise_state(saved_progress):
 
     defaults = {
         "screen": saved_progress["last_screen"],
-        "previous_screen": saved_progress.get("previous_screen", "home"),
         "selected_level": saved_progress["selected_level"],
         "difficulty": saved_progress["difficulty"],
         "score": saved_progress["score"],
@@ -829,6 +952,7 @@ def initialise_state(saved_progress):
         "browser_action_revision": 0,
         "attempt_restored": False,
         "custom_attempt_id": "",
+        "picture_component_revision": None,
     }
 
     for key, value in defaults.items():
@@ -979,6 +1103,11 @@ def initialise_state(saved_progress):
                     )
                 )
 
+                restored_selected = attempt.get("selected_picture_card")
+                st.session_state.selected_picture_card = (
+                    str(restored_selected) if restored_selected else None
+                )
+
                 st.session_state.screen = "puzzle"
                 st.session_state.sort_key += 1
 
@@ -996,31 +1125,25 @@ def navigate(
     screen_name,
     level_index=None,
 ):
-    current_screen = str(
-        st.session_state.get(
-            "screen",
-            "home",
-        )
-    )
+    """Navigate without losing the active player profile."""
 
-    if current_screen != screen_name:
-        st.session_state.previous_screen = current_screen
+    active_player_id = current_player_id()
+    active_player_name = current_player_name()
 
-    st.session_state.screen = (
-        screen_name
-    )
+    st.session_state.screen = screen_name
 
-    st.query_params["screen"] = (
-        screen_name
-    )
+    # Rebuild the URL with the player details included. This is important on
+    # Streamlit Community Cloud because opening a raw ?screen=... link may
+    # create a fresh session. Without the player parameter, the fresh session
+    # would return to the login page.
+    st.query_params.clear()
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+    st.query_params["player_name"] = active_player_name
+    st.query_params["screen"] = screen_name
+
     if level_index is not None:
-        st.session_state.selected_level = int(
-            level_index
-        )
-
-        st.query_params["level"] = str(
-            level_index
-        )
+        st.session_state.selected_level = int(level_index)
+        st.query_params["level"] = str(int(level_index))
 
     save_progress()
     st.rerun()
@@ -1270,15 +1393,7 @@ def start_puzzle():
     layout = [
         {
             "header": "CARD TRAY",
-            "items": [
-                card_text(
-                    level,
-                    card_id,
-                    level_index,
-                    difficulty,
-                )
-                for card_id in card_ids
-            ],
+            "items": list(card_ids),
         }
     ]
 
@@ -1302,10 +1417,12 @@ def start_puzzle():
     st.session_state.result = None
     st.session_state.show_hint = False
     st.session_state.slot_warning = False
+    st.session_state.selected_picture_card = None
     st.session_state.sort_key += 1
     st.session_state.custom_attempt_id = (
         f"{level_index}-{difficulty}-{time.time_ns()}"
     )
+    st.session_state.selected_picture_card = None
 
     result_key_json = json.dumps(
         PUZZLE_RESULT_STORAGE_KEY
@@ -1857,9 +1974,15 @@ def submit_custom_result(payload):
     }
     st.session_state.show_hint = False
     st.session_state.custom_attempt_id = ""
+    st.session_state.selected_picture_card = None
     st.session_state.screen = "result"
 
+    active_player_id = current_player_id()
+    active_player_name = current_player_name()
+
     st.query_params.clear()
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+    st.query_params["player_name"] = active_player_name
     st.query_params["screen"] = "result"
     st.query_params["level"] = str(level_index)
 
@@ -1871,653 +1994,424 @@ def submit_custom_result(payload):
     st.rerun()
 
 
+
+# -----------------------------------------------------------------------------
+# Built-in picture drag-and-drop component
+# -----------------------------------------------------------------------------
+COMPONENT_DIR = BASE_DIR / ".first_aid_picture_sorter"
+COMPONENT_DIR.mkdir(exist_ok=True)
+COMPONENT_INDEX = COMPONENT_DIR / "index.html"
+
+COMPONENT_INDEX.write_text(
+    '''<!doctype html>
+<html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:10px;font-family:Arial,sans-serif;background:transparent;color:#202124}
+.shell{background:#fffaf0;border:5px solid #202124;border-radius:18px;padding:14px;box-shadow:8px 8px 0 #202124}
+.tray,.slot-body{border:4px dashed #202124;border-radius:14px;background:#eaf7ff;min-height:190px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.slot{border:4px dashed #202124;border-radius:14px;background:#f5f5f5;padding:8px;min-height:220px}.slot-title{font-weight:900;margin-bottom:7px}.slot-body{border:0;background:transparent;min-height:170px;align-items:center;justify-content:center;padding:0}
+.card{width:160px;max-width:100%;background:white;border:4px solid #202124;border-radius:12px;padding:7px;box-shadow:4px 4px 0 #202124;cursor:pointer;user-select:none;touch-action:manipulation}.card.selected{background:#fff0ae;outline:6px solid #ffca28;transform:translateY(-3px)}.card img{width:100%;height:130px;object-fit:contain;display:block;border-radius:8px}.label{font-size:12px;font-weight:700;text-align:center;line-height:1.2;margin-top:6px}.missing{height:130px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;font-weight:900}.dragover{background:#fff0ae!important}.slot-body,.tray{cursor:pointer}.help{font-weight:900;background:#fff0ae;border:3px solid #202124;border-radius:10px;padding:9px;margin-bottom:10px;text-align:center}
+@media(max-width:780px){.slots{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head><body><div id="root"></div><script>
+let args={};let layout=[];let dragged=null;let selected=null;
+function post(type,extra){window.parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},extra||{}),'*')}
+function send(value){post('streamlit:setComponentValue',{value:value})}
+function setHeight(){post('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+20})}
+function info(id){return (args.cards||[]).find(x=>x.id===id)||{id:id,label:id,image:''}}
+function refreshSelection(){document.querySelectorAll('.card').forEach(card=>{card.classList.toggle('selected',card.dataset.id===selected)})}
+function cardNode(id){const c=info(id),n=document.createElement('div');n.className='card'+(selected===id?' selected':'');n.draggable=true;n.dataset.id=id;if(c.image){const im=document.createElement('img');im.src=c.image;im.alt=c.label;im.draggable=false;n.appendChild(im)}else{const m=document.createElement('div');m.className='missing';m.textContent=id+' image missing';n.appendChild(m)}const l=document.createElement('div');l.className='label';l.textContent=c.label;n.appendChild(l);n.addEventListener('click',e=>{e.stopPropagation();selected=(selected===id?null:id);refreshSelection()});n.addEventListener('dragstart',e=>{dragged=id;selected=id;refreshSelection();e.dataTransfer.setData('text/plain',id);e.dataTransfer.effectAllowed='move'});n.addEventListener('dragend',()=>{dragged=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});return n}
+function moveCard(id,index){if(!id)return;let from=-1;layout.forEach((c,i)=>{if(c.items.includes(id))from=i});if(from<0||from===index){selected=null;render();return}if(index>0&&layout[index].items.length&&!layout[index].items.includes(id)){layout[0].items.push(layout[index].items[0]);layout[index].items=[]}layout[from].items=layout[from].items.filter(x=>x!==id);layout[index].items.push(id);selected=null;render();send({layout:layout,moved_card:id,revision:Date.now()})}function target(el,index){el.addEventListener('click',()=>{if(selected)moveCard(selected,index)});el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('dragover')});el.addEventListener('dragleave',()=>el.classList.remove('dragover'));el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain')||dragged||selected;moveCard(id,index)})}
+function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const help=document.createElement('div');help.className='help';help.textContent='Click a picture to select it, then click the correct slot. You may also drag the picture.';shell.appendChild(help);const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='CARD TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
+window.addEventListener('message',e=>{if(e.data&&e.data.type==='streamlit:render'){args=e.data.args||{};layout=JSON.parse(JSON.stringify(args.layout||[]));render()}});
+post('streamlit:componentReady',{apiVersion:1});setHeight();
+</script></body></html>''',
+    encoding="utf-8",
+)
+
+picture_sorter = components.declare_component(
+    "first_aid_picture_sorter",
+    path=str(COMPONENT_DIR),
+)
+
+
+def normalise_picture_layout(layout):
+    cleaned = serialisable_layout(layout)
+    if cleaned is None:
+        return None
+    for container in cleaned:
+        container["items"] = [extract_card_id(item) for item in container["items"]]
+    return cleaned
+
+
+@st.dialog("DECISION QUESTION", width="medium")
+def show_decision_question_dialog(level, pending_id):
+    """Display the current decision question as a centred overlay popup."""
+
+    decision = get_decision(level, pending_id)
+    if decision is None:
+        st.session_state.pending_decision = None
+        return
+
+    st.markdown(
+        f"<div style='font-size:1.2rem;font-weight:800;margin-bottom:12px;'>"
+        f"{decision['question']}</div>",
+        unsafe_allow_html=True,
+    )
+
+    selected_answer = st.radio(
+        "Choose your answer",
+        decision["options"],
+        index=None,
+        key=f"decision_dialog_answer_{pending_id}",
+        label_visibility="collapsed",
+    )
+
+    if st.button(
+        "CONFIRM ANSWER",
+        key=f"confirm_dialog_decision_{pending_id}",
+        use_container_width=True,
+    ):
+        if selected_answer is None:
+            st.warning("Choose one answer first.")
+        else:
+            st.session_state.decision_answers[pending_id] = selected_answer
+            st.session_state.pending_decision = None
+            save_progress()
+            st.rerun()
+
+
 def render_custom_image_puzzle():
-    """Render a real image drag-and-drop puzzle inside a custom HTML component."""
+    """Reliable native Streamlit picture-placement game.
 
-    if not st.session_state.get("custom_attempt_id"):
-        st.session_state.custom_attempt_id = (
-            f"{st.session_state.selected_level}-"
-            f"{st.session_state.difficulty}-"
-            f"{time.time_ns()}"
-        )
+    The player selects a picture and then presses PLACE HERE in a slot.
+    This avoids iframe drag/drop restrictions on Streamlit Community Cloud.
+    """
 
-    attempt_id = st.session_state.custom_attempt_id
     level_index = st.session_state.selected_level
     difficulty = st.session_state.difficulty
     level = LEVELS[level_index]
-    slot_count = slot_count_for(level_index, difficulty)
 
-    cards = custom_puzzle_cards(
-        level_index,
-        difficulty,
-        level,
-    )
+    if st.session_state.layout is None:
+        start_puzzle()
+        return
 
-    decisions = decisions_for(
-        level,
-        difficulty,
-    )
-
-    cards_json = json.dumps(cards)
-    decisions_json = json.dumps(decisions)
-    correct_order_json = json.dumps(
-        correct_cards_for(
-            level_index,
-            level,
-            difficulty,
-        )
-    )
-
-    previous_screen = str(
-        st.session_state.get(
-            "previous_screen",
-            "scenario",
-        )
-    )
-
-    if previous_screen not in {
-        "home",
-        "map",
-        "difficulty",
-        "scenario",
-        "score",
-        "achievements",
-    }:
-        previous_screen = "scenario"
-
-    previous_screen_json = json.dumps(previous_screen)
-
-    start_seconds = 0
-    if st.session_state.start_time is not None:
-        start_seconds = max(
-            0,
-            int(time.time() - st.session_state.start_time),
+    st.session_state.layout = normalise_picture_layout(st.session_state.layout)
+    if st.session_state.previous_layout is not None:
+        st.session_state.previous_layout = normalise_picture_layout(
+            st.session_state.previous_layout
         )
 
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<base target="_parent">
-<meta charset="utf-8">
-<style>
-    * {{
-        box-sizing: border-box;
-    }}
-
-    body {{
-        margin: 0;
-        padding: 12px;
-        font-family: Arial, sans-serif;
-        background: transparent;
-        color: #202124;
-    }}
-
-    .game-shell {{
-        background: #fffaf0;
-        border: 5px solid #202124;
-        border-radius: 18px;
-        padding: 16px;
-        box-shadow: 8px 8px 0 #202124;
-    }}
-
-    .status-row {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        margin-bottom: 16px;
-    }}
-
-    .status-box {{
-        background: white;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        text-align: center;
-        padding: 10px;
-        font-weight: 900;
-        box-shadow: 4px 4px 0 #202124;
-    }}
-
-    .tray-title,
-    .slot-title {{
-        font-weight: 900;
-        margin-bottom: 7px;
-    }}
-
-    .tray {{
-        min-height: 190px;
-        padding: 12px;
-        border: 4px dashed #202124;
-        border-radius: 14px;
-        background: #eaf7ff;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: flex-start;
-        margin-bottom: 18px;
-    }}
-
-    .slots {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 14px;
-    }}
-
-    .slot {{
-        min-height: 220px;
-        padding: 8px;
-        border: 4px dashed #202124;
-        border-radius: 14px;
-        background: #f5f5f5;
-        display: flex;
-        flex-direction: column;
-    }}
-
-    .slot.drop-active,
-    .tray.drop-active {{
-        background: #fff0ae;
-    }}
-
-    .slot-body {{
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }}
-
-    .card {{
-        width: 160px;
-        max-width: 100%;
-        background: white;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        padding: 7px;
-        box-shadow: 4px 4px 0 #202124;
-        cursor: grab;
-        user-select: none;
-        touch-action: none;
-    }}
-
-    .card:active {{
-        cursor: grabbing;
-    }}
-
-    .card img {{
-        width: 100%;
-        height: 135px;
-        object-fit: contain;
-        display: block;
-        border-radius: 8px;
-        background: white;
-    }}
-
-    .card-label {{
-        font-size: 12px;
-        font-weight: 700;
-        text-align: center;
-        margin-top: 6px;
-        line-height: 1.2;
-    }}
-
-    .missing-image {{
-        height: 135px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #eeeeee;
-        border-radius: 8px;
-        font-weight: 900;
-    }}
-
-    .controls {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        margin-top: 18px;
-    }}
-
-    button,
-    .control-link {{
-        min-height: 54px;
-        border: 4px solid #202124;
-        border-radius: 10px;
-        background: #20a43a;
-        color: white;
-        box-shadow: 5px 5px 0 #202124;
-        font-weight: 900;
-        font-size: 16px;
-        cursor: pointer;
-    }}
-
-    .control-link {{
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        background: #ffca28;
-        color: #202124;
-        position: relative;
-        z-index: 10000;
-        pointer-events: auto;
-    }}
-
-    button:hover,
-    .control-link:hover {{
-        background: #ffca28;
-        color: #202124;
-    }}
-
-    button:active {{
-        transform: translate(4px, 4px);
-        box-shadow: 1px 1px 0 #202124;
-    }}
-
-    .message {{
-        min-height: 28px;
-        margin-top: 14px;
-        font-weight: 900;
-        color: #c62828;
-        text-align: center;
-    }}
-
-    .modal-backdrop {{
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.58);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        padding: 18px;
-    }}
-
-    .modal {{
-        width: min(500px, 96vw);
-        max-height: 92vh;
-        overflow-y: auto;
-        background: white;
-        border: 5px solid #202124;
-        border-radius: 16px;
-        box-shadow: 9px 9px 0 #202124;
-        padding: 18px;
-    }}
-
-    .modal img {{
-        width: 100%;
-        max-height: 260px;
-        object-fit: contain;
-        border-radius: 10px;
-        margin-bottom: 12px;
-    }}
-
-    .question {{
-        background: #fff0ae;
-        border: 4px solid #202124;
-        border-radius: 12px;
-        padding: 14px;
-        font-weight: 900;
-        margin-bottom: 12px;
-    }}
-
-    .option {{
-        display: block;
-        background: #f5f5f5;
-        border: 3px solid #202124;
-        border-radius: 10px;
-        padding: 10px;
-        margin: 8px 0;
-        font-weight: 700;
-    }}
-
-    @media (max-width: 780px) {{
-        .slots {{
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }}
-
-        .status-row {{
-            grid-template-columns: 1fr;
-        }}
-
-        .controls {{
-            grid-template-columns: 1fr;
-        }}
-    }}
-</style>
-</head>
-<body>
-<div class="game-shell">
-    <div class="status-row">
-        <div class="status-box">DIFFICULTY<br>{difficulty}</div>
-        <div class="status-box">MOVES<br><span id="moves">0</span></div>
-        <div class="status-box">TIME<br><span id="timer">{start_seconds}s</span></div>
-    </div>
-
-    <div class="tray-title">CARD TRAY</div>
-    <div id="tray" class="tray"></div>
-
-    <div id="slots" class="slots"></div>
-
-    <div class="controls">
-        <button id="backBtn" class="control-link" type="button">BACK</button>
-        <button id="restartBtn">RESTART</button>
-        <button id="doneBtn">DONE</button>
-    </div>
-
-    <div id="message" class="message"></div>
-</div>
-
-<div id="modalBackdrop" class="modal-backdrop">
-    <div class="modal">
-        <img id="modalImage" alt="">
-        <div id="modalQuestion" class="question"></div>
-        <div id="modalOptions"></div>
-        <button id="confirmDecision">CONFIRM ANSWER</button>
-    </div>
-</div>
-
-<script>
-const cards = {cards_json};
-const decisions = {decisions_json};
-const correctOrder = {correct_order_json};
-const slotCount = {slot_count};
-const initialElapsed = {start_seconds};
-
-let moves = 0;
-let elapsed = initialElapsed;
-let draggedId = null;
-let activeDecision = null;
-let selectedAnswer = null;
-const answers = {{}};
-
-const tray = document.getElementById("tray");
-const slotsRoot = document.getElementById("slots");
-const message = document.getElementById("message");
-const modalBackdrop = document.getElementById("modalBackdrop");
-const modalImage = document.getElementById("modalImage");
-const modalQuestion = document.getElementById("modalQuestion");
-const modalOptions = document.getElementById("modalOptions");
-
-function cardData(id) {{
-    return cards.find(card => card.id === id);
-}}
-
-function buildCard(card) {{
-    const node = document.createElement("div");
-    node.className = "card";
-    node.draggable = true;
-    node.dataset.cardId = card.id;
-
-    if (card.image) {{
-        const image = document.createElement("img");
-        image.src = card.image;
-        image.alt = card.label;
-        node.appendChild(image);
-    }} else {{
-        const missing = document.createElement("div");
-        missing.className = "missing-image";
-        missing.textContent = card.id + " image missing";
-        node.appendChild(missing);
-    }}
-
-    const label = document.createElement("div");
-    label.className = "card-label";
-    label.textContent = card.label;
-    node.appendChild(label);
-
-    node.addEventListener("dragstart", event => {{
-        draggedId = card.id;
-        event.dataTransfer.setData("text/plain", card.id);
-        event.dataTransfer.effectAllowed = "move";
-    }});
-
-    node.addEventListener("dragend", () => {{
-        draggedId = null;
-        document.querySelectorAll(".drop-active")
-            .forEach(element => element.classList.remove("drop-active"));
-    }});
-
-    return node;
-}}
-
-function createSlot(index) {{
-    const slot = document.createElement("div");
-    slot.className = "slot";
-    slot.dataset.slotIndex = String(index);
-
-    const title = document.createElement("div");
-    title.className = "slot-title";
-    title.textContent = "SLOT " + (index + 1);
-
-    const body = document.createElement("div");
-    body.className = "slot-body";
-
-    slot.appendChild(title);
-    slot.appendChild(body);
-
-    makeDropTarget(slot, body, false);
-    return slot;
-}}
-
-function makeDropTarget(target, body, isTray) {{
-    target.addEventListener("dragover", event => {{
-        event.preventDefault();
-        target.classList.add("drop-active");
-    }});
-
-    target.addEventListener("dragleave", () => {{
-        target.classList.remove("drop-active");
-    }});
-
-    target.addEventListener("drop", event => {{
-        event.preventDefault();
-        target.classList.remove("drop-active");
-
-        const cardId = event.dataTransfer.getData("text/plain") || draggedId;
-        if (!cardId) return;
-
-        const cardNode = document.querySelector(
-            `.card[data-card-id="${{CSS.escape(cardId)}}"]`
-        );
-
-        if (!cardNode) return;
-
-        if (isTray) {{
-            tray.appendChild(cardNode);
-            moves += 1;
-            updateMoves();
-            return;
-        }}
-
-        const existing = body.querySelector(".card");
-
-        if (existing && existing.dataset.cardId !== cardId) {{
-            tray.appendChild(existing);
-        }}
-
-        body.appendChild(cardNode);
-        moves += 1;
-        updateMoves();
-        triggerDecision(cardId);
-    }});
-}}
-
-function updateMoves() {{
-    document.getElementById("moves").textContent = String(moves);
-}}
-
-function triggerDecision(cardId) {{
-    const decision = decisions.find(
-        item => item.trigger === cardId && !(item.id in answers)
-    );
-
-    if (!decision) return;
-
-    activeDecision = decision;
-    selectedAnswer = null;
-
-    const card = cardData(cardId);
-    modalImage.style.display = card && card.image ? "block" : "none";
-    modalImage.src = card && card.image ? card.image : "";
-    modalQuestion.textContent = decision.question;
-    modalOptions.innerHTML = "";
-
-    decision.options.forEach(option => {{
-        const label = document.createElement("label");
-        label.className = "option";
-
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "decisionOption";
-        radio.value = option;
-        radio.addEventListener("change", () => {{
-            selectedAnswer = option;
-        }});
-
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(" " + option));
-        modalOptions.appendChild(label);
-    }});
-
-    modalBackdrop.style.display = "flex";
-    modalBackdrop.scrollTop = 0;
-}}
-
-document.getElementById("confirmDecision").addEventListener("click", () => {{
-    if (!activeDecision || selectedAnswer === null) {{
-        alert("Choose one answer first.");
-        return;
-    }}
-
-    answers[activeDecision.id] = selectedAnswer;
-    modalBackdrop.style.display = "none";
-    activeDecision = null;
-    selectedAnswer = null;
-}});
-
-function currentSequence() {{
-    return Array.from(document.querySelectorAll(".slot-body"))
-        .map(body => {{
-            const card = body.querySelector(".card");
-            return card ? card.dataset.cardId : null;
-        }});
-}}
-
-function openParentScreen(screenName, extraParams = {{}}) {{
-    try {{
-        const params = new URLSearchParams();
-        params.set("screen", screenName);
-
-        Object.entries(extraParams).forEach(([key, value]) => {{
-            params.set(key, String(value));
-        }});
-
-        const targetUrl = "?" + params.toString();
-
-        // Navigate the Streamlit parent page without reading
-        // window.parent.location, which is blocked inside the iframe.
-        window.open(targetUrl, "_parent");
-    }} catch (error) {{
-        message.textContent = "Unable to open the requested page.";
-        console.error(error);
-    }}
-}}
-
-function submitToStreamlit(payload) {{
-    try {{
-        const jsonText = JSON.stringify(payload);
-        const encodedPayload = btoa(
-            unescape(encodeURIComponent(jsonText))
+    if "selected_picture_card" not in st.session_state:
+        st.session_state.selected_picture_card = None
+
+    def card_image(card_id):
+        return image_path_for_card(level_index, difficulty, card_id)
+
+    def render_clickable_picture(card_id, location_key, compact=False):
+        """Show a reliable image-only card with a small select control.
+
+        Streamlit Cloud does not consistently render local data-URI images as
+        CSS button backgrounds. Using st.image keeps the scenario pictures
+        visible on every rerun while preserving the comic card theme.
+        """
+
+        image_path = card_image(card_id)
+        if image_path is None:
+            st.info(f"Image missing: {card_id}")
+            return
+
+        selected = st.session_state.selected_picture_card == card_id
+        safe_location = re.sub(r"[^A-Za-z0-9_]", "_", location_key)
+        container_key = f"picture_card_{safe_location}"
+        button_key = (
+            f"select_picture_{safe_location}_"
+            f"{st.session_state.custom_attempt_id}"
         )
-            .replace(/\+/g, "-")
-            .replace(/\//g, "_")
-            .replace(/=+$/g, "");
 
-        message.textContent = "Checking your answers...";
+        border_colour = "#ffca28" if selected else "#202124"
+        background_colour = "#fff0ae" if selected else "#ffffff"
+        image_width = 150 if compact else 175
 
-        openParentScreen("puzzle", {{
-            level: {level_index},
-            puzzle_submit: encodedPayload
-        }});
-    }} catch (error) {{
-        message.textContent =
-            "Unable to submit the result. Please try again.";
-        console.error(error);
-    }}
-}}
+        st.markdown(
+            f"""
+            <style>
+            .st-key-{container_key} {{
+                position: relative;
+                background: {background_colour};
+                border: 5px solid {border_colour};
+                border-radius: 16px;
+                box-shadow: 5px 5px 0 #202124;
+                padding: 10px 10px 8px 10px;
+                margin-bottom: 12px;
+                overflow: visible;
+            }}
+            .st-key-{container_key} [data-testid="stImage"] {{
+                display: flex;
+                justify-content: center;
+                margin: 0;
+            }}
+            .st-key-{container_key} [data-testid="stImage"] img {{
+                border-radius: 10px;
+                object-fit: contain;
+                max-height: {145 if compact else 170}px;
+            }}
+            .st-key-{container_key} div.stButton > button {{
+                min-height: 2.35rem !important;
+                height: 2.35rem !important;
+                padding: 0 !important;
+                margin-top: 6px !important;
+                background: {'#ffca28' if selected else '#20a43a'} !important;
+                color: {'#202124' if selected else '#ffffff'} !important;
+                border: 4px solid #202124 !important;
+                border-radius: 9px !important;
+                box-shadow: 4px 4px 0 #202124 !important;
+                font-size: 1.15rem !important;
+                line-height: 1 !important;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
-document.getElementById("doneBtn").addEventListener("click", () => {{
-    message.textContent = "";
-
-    const sequence = currentSequence();
-
-    if (sequence.some(item => item === null)) {{
-        message.textContent = "Place one picture in every slot.";
-        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
-        return;
-    }}
-
-    const unansweredDecisions = decisions.filter(
-        item => !(item.id in answers)
-    );
-
-    if (unansweredDecisions.length > 0) {{
-        message.textContent =
-            "Answer the popup question before pressing DONE.";
-        message.scrollIntoView({{ behavior: "smooth", block: "center" }});
-
-        const missingDecision = unansweredDecisions[0];
-        triggerDecision(missingDecision.trigger);
-        return;
-    }}
-
-    message.textContent = "Checking your answers...";
-
-    submitToStreamlit({{
-        sequence,
-        answers,
-        moves,
-        elapsed,
-        attempt_id: "{attempt_id}"
-    }});
-}});
-
-document.getElementById("backBtn").addEventListener("click", () => {{
-    const previousScreen = {previous_screen_json};
-    openParentScreen(previousScreen, {{
-        level: {level_index}
-    }});
-}});
-
-document.getElementById("restartBtn").addEventListener("click", () => {{
-    window.location.reload();
-}});
+        with st.container(key=container_key):
+            st.image(image_path, width=image_width)
+            button_label = "✓ SELECTED" if selected else "✓"
+            if st.button(
+                button_label,
+                key=button_key,
+                help="Select this picture",
+                use_container_width=True,
+            ):
+                current = st.session_state.get("selected_picture_card")
+                st.session_state.selected_picture_card = (
+                    None if current == card_id else card_id
+                )
+                st.rerun()
 
 
+    # ---------------------- STATUS AT THE TOP ---------------------
+    status_1, status_2, status_3 = st.columns(3)
+    with status_1:
+        st.markdown(
+            '<div class="stat-box"><div>DIFFICULTY</div>'
+            f'<span>{difficulty}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with status_2:
+        st.markdown(
+            '<div class="stat-box"><div>MOVES</div>'
+            f'<span>{st.session_state.moves}</span></div>',
+            unsafe_allow_html=True,
+        )
+    with status_3:
+        live_timer()
 
-cards.forEach(card => {{
-    tray.appendChild(buildCard(card));
-}});
+    # Show the decision question over the game as a centred popup.
+    pending_id = st.session_state.pending_decision
+    if pending_id:
+        show_decision_question_dialog(level, pending_id)
 
-for (let index = 0; index < slotCount; index += 1) {{
-    slotsRoot.appendChild(createSlot(index));
-}}
+    def move_selected_to(target_index):
+        selected = st.session_state.get("selected_picture_card")
+        if not selected:
+            st.warning("Select one picture first.")
+            return
 
-makeDropTarget(tray, tray, true);
+        layout = copy.deepcopy(st.session_state.layout)
+        old_sequence = sequence_from_layout(layout)
 
-setInterval(() => {{
-    elapsed += 1;
-    document.getElementById("timer").textContent = elapsed + "s";
-}}, 1000);
-</script>
-</body>
-</html>
-"""
+        source_index = None
+        for index, container in enumerate(layout):
+            if selected in container.get("items", []):
+                source_index = index
+                break
 
-    components.html(
-        html,
-        height=980 if slot_count >= 6 else 800,
-        scrolling=True,
-    )
+        if source_index is None:
+            st.session_state.selected_picture_card = None
+            st.warning("That picture is no longer available. Select it again.")
+            return
+
+        if source_index == target_index:
+            st.session_state.selected_picture_card = None
+            st.rerun()
+
+        # A slot accepts only one picture. Return its old picture to the tray.
+        if target_index > 0 and layout[target_index].get("items"):
+            old_card = layout[target_index]["items"][0]
+            if old_card != selected and old_card not in layout[0]["items"]:
+                layout[0]["items"].append(old_card)
+            layout[target_index]["items"] = []
+
+        layout[source_index]["items"] = [
+            item for item in layout[source_index].get("items", [])
+            if item != selected
+        ]
+
+        if selected not in layout[target_index]["items"]:
+            layout[target_index]["items"].append(selected)
+
+        new_sequence = sequence_from_layout(layout)
+        new_decision = detect_new_decision(level, old_sequence, new_sequence)
+
+        st.session_state.layout = layout
+        st.session_state.previous_layout = copy.deepcopy(layout)
+        st.session_state.previous_sequence = list(new_sequence)
+        st.session_state.moves += 1
+        st.session_state.selected_picture_card = None
+
+        if new_decision is not None and st.session_state.pending_decision is None:
+            st.session_state.pending_decision = new_decision
+
+        save_progress()
+        st.rerun()
+
+    # ---------------- HORIZONTAL CARD TRAY ----------------
+    st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
+    st.markdown("### CARD TRAY")
+    st.caption("Press the ✓ button below a picture, then press PLACE HERE in the correct story slot.")
+
+    tray_ids = list(st.session_state.layout[0].get("items", []))
+
+    if not tray_ids:
+        st.success("All pictures have been placed.")
+    else:
+        tray_columns = st.columns(min(4, len(tray_ids)), gap="medium")
+
+        for card_position, card_id in enumerate(tray_ids):
+            with tray_columns[card_position % len(tray_columns)]:
+                render_clickable_picture(
+                    card_id,
+                    f"tray_{card_position}_{card_id}",
+                    compact=False,
+                )
+
+    selected_card = st.session_state.get("selected_picture_card")
+    if selected_card:
+        st.success("Picture selected. Choose a story slot below.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ---------------- SMALLER STORY SLOTS ----------------
+    st.markdown("### STORY SLOTS")
+    slot_total = len(st.session_state.layout) - 1
+
+    for row_start in range(1, slot_total + 1, 3):
+        slot_columns = st.columns(3, gap="medium")
+
+        for offset in range(3):
+            slot_index = row_start + offset
+            if slot_index > slot_total:
+                continue
+
+            with slot_columns[offset]:
+                st.markdown(
+                    f"<div class='comic-panel' style='padding:12px;margin-bottom:12px;'>"
+                    f"<h3 style='margin:0 0 7px 0;'>SLOT {slot_index}</h3>",
+                    unsafe_allow_html=True,
+                )
+
+                slot_items = st.session_state.layout[slot_index].get("items", [])
+
+                if slot_items:
+                    card_id = slot_items[0]
+                    render_clickable_picture(
+                        card_id,
+                        f"slot_{slot_index}_{card_id}",
+                        compact=True,
+                    )
+
+                    if st.button(
+                        "RETURN TO TRAY",
+                        key=f"return_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_picture_card = card_id
+                        move_selected_to(0)
+                else:
+                    st.markdown(
+                        "<div style='height:115px;display:flex;align-items:center;"
+                        "justify-content:center;border:4px dashed #202124;"
+                        "border-radius:14px;font-weight:900;font-size:0.9rem;'>"
+                        "EMPTY SLOT</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                if st.button(
+                    "PLACE HERE",
+                    key=f"place_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                    use_container_width=True,
+                    disabled=not bool(st.session_state.get("selected_picture_card")),
+                ):
+                    move_selected_to(slot_index)
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    # -------------------------- CONTROLS -------------------------
+    control_back, control_restart, control_done = st.columns(3)
+    with control_back:
+        if st.button("BACK", key="puzzle_back_to_map", use_container_width=True):
+            st.session_state.layout = None
+            st.session_state.previous_layout = None
+            st.session_state.previous_sequence = [None] * 6
+            st.session_state.start_time = None
+            st.session_state.pending_decision = None
+            st.session_state.decision_answers = {}
+            st.session_state.custom_attempt_id = ""
+            st.session_state.selected_picture_card = None
+            navigate("map")
+
+    with control_restart:
+        if st.button("RESTART", key="puzzle_restart", use_container_width=True):
+            st.session_state.selected_picture_card = None
+            start_puzzle()
+
+    with control_done:
+        if st.button("DONE", key="puzzle_done", use_container_width=True):
+            if st.session_state.pending_decision is not None:
+                st.warning("Confirm the current popup answer before pressing DONE.")
+            elif not slots_complete(st.session_state.layout):
+                st.warning("Place one picture in every slot.")
+            elif not decisions_complete(level):
+                unanswered = [
+                    d for d in decisions_for(level, difficulty)
+                    if d["id"] not in st.session_state.decision_answers
+                ]
+                if unanswered:
+                    st.session_state.pending_decision = unanswered[0]["id"]
+                    st.warning("Answer all decision questions before pressing DONE.")
+                    st.rerun()
+            else:
+                evaluate_level()
+
+
+
+# -----------------------------------------------------------------------------
+# PLAYER PROFILE GATE
+# Every Player ID receives its own browser save and unfinished-attempt record.
+# -----------------------------------------------------------------------------
+query_player = normalise_player_id(st.query_params.get(PLAYER_QUERY_KEY, ""))
+
+if not st.session_state.get("player_id") and query_player:
+    st.session_state.player_id = query_player
+    st.session_state.player_name = str(
+        st.query_params.get("player_name", query_player)
+    )[:30]
+
+if not current_player_id():
+    render_player_login()
+    st.stop()
+
+
+# Keep the active profile in the URL. This allows a new Streamlit Cloud
+# session created by a page link or browser refresh to restore the same player
+# instead of showing the login form again.
+active_player_id = current_player_id()
+active_player_name = current_player_name()
+
+if st.query_params.get(PLAYER_QUERY_KEY) != active_player_id:
+    st.query_params[PLAYER_QUERY_KEY] = active_player_id
+
+if st.query_params.get("player_name") != active_player_name:
+    st.query_params["player_name"] = active_player_name
+
 
 browser_loaded = st.session_state.get(
     "browser_progress_loaded",
@@ -2527,19 +2421,26 @@ browser_loaded = st.session_state.get(
 if not browser_loaded:
     browser_value = read_browser_progress()
 
+    # streamlit-js-eval may temporarily return None on Streamlit Cloud,
+    # especially after navigation creates a new page session. Do not stop
+    # the whole app on a permanent loading screen. Continue with a clean
+    # state for this session; saved progress can still be written normally
+    # after the app has loaded.
     if browser_value is None:
-        st.info(
-            "Loading your saved progress..."
+        initialise_state(
+            empty_progress()
         )
-        st.stop()
-
-    initialise_state(
-        sanitise_progress(
-            browser_value
+    else:
+        initialise_state(
+            sanitise_progress(
+                browser_value
+            )
         )
-    )
 
 else:
+    # State is already present in the active Streamlit session. Passing
+    # defaults here does not overwrite existing values because
+    # initialise_state only creates missing keys.
     initialise_state(
         empty_progress()
     )
@@ -2616,6 +2517,11 @@ if query_level is not None:
 
     except ValueError:
         pass
+
+    # Do not rerun here. The level number remains in the URL, so an
+    # unconditional st.rerun() would create an endless rerun loop whenever
+    # a player clicks a numbered level on the progress map. Continue directly
+    # to render the selected level's difficulty page instead.
 
 
 CSS = """
@@ -3202,11 +3108,25 @@ st.markdown(
 )
 
 
+with st.sidebar:
+    st.markdown(f"### Player: {current_player_name()}")
+    st.caption("Your progress and unfinished attempt are saved under this Player ID.")
+    if st.button("SWITCH PLAYER", use_container_width=True):
+        clear_runtime_game_state()
+        st.session_state.pop("player_id", None)
+        st.session_state.pop("player_name", None)
+        st.query_params.clear()
+        st.rerun()
+
+
 def show_top_bar():
     top_bar_html = (
         '<div class="top-bar">'
         '<div>FIRST AID HEROES</div>'
         '<div>'
+        f'<span class="status-pill">'
+        f'Player: {current_player_name()}'
+        f'</span>'
         f'<span class="status-pill">'
         f'Score: {st.session_state.score}'
         f'</span>'
@@ -3234,25 +3154,29 @@ def render_home():
             cover_path
         )
 
+        start_url = game_query_url("map")
+        achievements_url = game_query_url("achievements")
+        score_url = game_query_url("score")
+
         menu_html = (
             '<div class="main-menu-wrap">'
             f'<img src="{cover_uri}" '
             'alt="First Aid Heroes">'
             '<a '
             'class="menu-hotspot start-hotspot" '
-            'href="?screen=map" '
+            f'href="{start_url}" '
             'target="_self" '
             'aria-label="Start">'
             '</a>'
             '<a '
             'class="menu-hotspot achievement-hotspot" '
-            'href="?screen=achievements" '
+            f'href="{achievements_url}" '
             'target="_self" '
             'aria-label="Achievements">'
             '</a>'
             '<a '
             'class="menu-hotspot score-hotspot" '
-            'href="?screen=score" '
+            f'href="{score_url}" '
             'target="_self" '
             'aria-label="Score">'
             '</a>'
@@ -3330,7 +3254,7 @@ def render_map():
                         f'<a '
                         f'class="map-level-hotspot unlocked '
                         f'map-level-{level_number}" '
-                        f'href="?screen=difficulty&level={level_index}" '
+                        f'href="{game_query_url("difficulty", level_index)}" '
                         f'target="_self" '
                         f'title="Open Level {level_number}" '
                         f'aria-label="Open Level {level_number}">'
@@ -3955,9 +3879,6 @@ elif screen == "scenario":
 
 
 elif screen == "puzzle":
-    # Check for DONE or BACK commands before rendering the puzzle.
-    # Do not clear Local Storage here because DONE reloads this page first.
-    poll_custom_puzzle_result()
     show_top_bar()
 
     level_index = st.session_state.selected_level
@@ -3971,8 +3892,8 @@ elif screen == "puzzle":
             '</div>'
             f'<h2>{level["title"]}</h2>'
             '<p>'
-            'Drag each picture into the correct slot. '
-            'Decision questions appear when selected pictures are placed.'
+            'Click a picture to select it, then press PLACE HERE in the correct slot. '
+            'Decision questions will appear after certain pictures are placed.'
             '</p>'
             '</div>'
         ),
