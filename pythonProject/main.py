@@ -2500,7 +2500,18 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    openParentScreen("map");
+    try {{
+        // Return to the exact page the player visited immediately before
+        // entering this puzzle, such as the scenario or difficulty page.
+        if (window.parent.history.length > 1) {{
+            window.parent.history.back();
+        }} else {{
+            // Safe fallback when there is no usable browser history.
+            openParentScreen("difficulty", {{ level: {level_index} }});
+        }}
+    }} catch (error) {{
+        openParentScreen("difficulty", {{ level: {level_index} }});
+    }}
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
