@@ -105,6 +105,10 @@ def clear_runtime_game_state():
     # Also clear statistics keys
     stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
     keys_to_clear.extend(stats_keys)
+    
+    # Clear last played keys
+    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
+    keys_to_clear.extend(last_played_keys)
 
     for key in keys_to_clear:
         st.session_state.pop(key, None)
@@ -1012,6 +1016,11 @@ def reset_saved_progress():
     stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
     for key in stats_keys:
         st.session_state.pop(key, None)
+    
+    # Clear last played keys
+    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
+    for key in last_played_keys:
+        st.session_state.pop(key, None)
 
     st.session_state.pending_browser_action = "reset"
     st.session_state.pending_browser_payload = ""
@@ -1088,6 +1097,32 @@ def get_average_stats(level_index):
     avg_moves = stats["total_moves"] // attempts
     
     return avg_time, avg_moves, stats["best_time"], stats["best_moves"], attempts
+
+
+# ============================================================
+# LAST PLAYED TRACKING
+# ============================================================
+
+def update_last_played(level_index):
+    """Update the last played timestamp for a level."""
+    last_played_key = f"last_played_level_{int(level_index)}"
+    st.session_state[last_played_key] = time.time()
+
+
+def get_last_played(level_index):
+    """Get the last played timestamp for a level."""
+    last_played_key = f"last_played_level_{int(level_index)}"
+    if last_played_key in st.session_state:
+        return st.session_state[last_played_key]
+    return None
+
+
+def format_last_played(timestamp):
+    """Format the timestamp as a readable string."""
+    if timestamp is None:
+        return "Never"
+    dt = time.localtime(timestamp)
+    return time.strftime("%b %d, %Y at %I:%M %p", dt)
 
 
 # ============================================================
@@ -1191,7 +1226,8 @@ def initialise_state(saved_progress):
                     level_index
                 )
                 st.session_state.difficulty = (
-                    difficulty                )
+                    difficulty
+                )
                 st.session_state.layout = (
                     copy.deepcopy(layout)
                 )
@@ -1981,6 +2017,9 @@ def evaluate_level():
 
     # Record statistics for this attempt (by level only)
     update_stats(level_index, elapsed, st.session_state.moves)
+    
+    # Update last played
+    update_last_played(level_index)
 
     st.session_state.result = {
         "passed": passed,
@@ -2163,6 +2202,9 @@ def submit_custom_result(payload):
 
     # Record statistics for this attempt (by level only)
     update_stats(level_index, elapsed, moves)
+    
+    # Update last played
+    update_last_played(level_index)
 
     st.session_state.moves = moves
     st.session_state.start_time = time.time() - elapsed
@@ -3333,7 +3375,16 @@ st.markdown(
 
 with st.sidebar:
     st.markdown(f"### Player: {current_player_name()}")
+    st.caption(f"ID: {current_player_id()}")
     st.caption("Your progress and unfinished attempt are saved under this Player ID.")
+    
+    # Show save status
+    save_key = browser_storage_key()
+    st.caption(f"💾 Save key: `{save_key[:30]}...`")
+    
+    if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
+        st.info("📌 You have an unfinished game")
+    
     if st.button("SWITCH PLAYER", use_container_width=True):
         clear_runtime_game_state()
         st.session_state.pop("player_id", None)
@@ -3430,6 +3481,38 @@ def render_home():
             ),
             unsafe_allow_html=True,
         )
+
+        # Check if there's an unfinished attempt
+        if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
+            st.markdown(
+                """
+                <div style="text-align:center;padding:15px;margin-bottom:15px;
+                            background:#fff0ae;border:4px solid #202124;border-radius:14px;
+                            box-shadow:6px 6px 0 #202124;">
+                    <span style="font-size:1.2rem;font-weight:bold;">⏳ You have an unfinished game!</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            
+            continue_col1, continue_col2 = st.columns([1, 1])
+            with continue_col1:
+                if st.button("▶ CONTINUE GAME", use_container_width=True):
+                    # Restore the game state
+                    level_index = st.session_state.selected_level
+                    navigate("puzzle", level_index)
+            
+            with continue_col2:
+                if st.button("🗑 DISCARD AND START FRESH", use_container_width=True):
+                    st.session_state.layout = None
+                    st.session_state.previous_layout = None
+                    st.session_state.previous_sequence = [None] * 6
+                    st.session_state.start_time = None
+                    st.session_state.pending_decision = None
+                    st.session_state.decision_answers = {}
+                    st.session_state.selected_picture_card = None
+                    save_progress()
+                    st.rerun()
 
         column_1, column_2, column_3 = (
             st.columns(3)
@@ -4378,6 +4461,11 @@ elif screen == "result":
                     )
             
             st.caption(f"Total attempts for this level: {attempts}")
+            
+            # Show last played
+            last_played = get_last_played(level_index)
+            if last_played:
+                st.caption(f"Last played: {format_last_played(last_played)}")
 
         if result["passed"]:
             if (
@@ -4601,6 +4689,11 @@ elif screen == "score":
                 ),
                 unsafe_allow_html=True,
             )
+            
+            # Show last played
+            last_played = get_last_played(level_index)
+            if last_played:
+                st.caption(f"Last played: {format_last_played(last_played)}")
         else:
             st.markdown(
                 (
