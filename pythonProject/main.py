@@ -176,12 +176,22 @@ LEVELS = [
             "L1-2": "Pinch the bridge of the nose",
             "L1-3": "Continue pinching",
             "L1-4": "Check for any bleeding",
+            "L1_E_1": "Notify a teacher",
+            "L1_E_2": "Pinch the bridge of the nose",
+            "L1_E_3": "Continue pinching",
+            "L1_E_4": "Check for any bleeding",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
             # ============================================================
             "L1-5": "Student realises",
             "L1-6": "Retrieve ice pack",
+            "L1_M_1": "Student realises",
+            "L1_M_2": "Notify a teacher",
+            "L1_M_3": "Pinch the bridge of the nose",
+            "L1_M_4": "Retrieve ice pack",
+            "L1_M_5": "Apply ice pack",
+            "L1_M_6": "Check for any bleeding",
             
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
@@ -189,12 +199,22 @@ LEVELS = [
             "L1-7": "Friend seeks help",
             "L1-8": "Squeeze ice pack",
             "L1-9": "Apply ice pack on bridge of the nose",
+            "L1_H_1": "Student realises",
+            "L1_H_2": "Friend seeks help",
+            "L1_H_3": "Notify the teacher",
+            "L1_H_4": "Pinch bridge of the nose",
+            "L1_H_5": "Retrieve ice pack",
+            "L1_H_6": "Squeeze ice pack",
+            "L1_H_7": "Apply ice pack on bridge of the nose",
+            "L1_H_8": "Check for any bleeding",
             
             # ============================================================
             # WRONG CARDS (2 total) - Only appear in Hard mode
             # ============================================================
             "L1-W1": "Open the ice pack",
             "L1-W2": "Tilt head back",
+            "L1_H_W1": "Open the ice pack",
+            "L1_H_W2": "Tilt head back",
         },
         "decisions": [
             # ============================================================
