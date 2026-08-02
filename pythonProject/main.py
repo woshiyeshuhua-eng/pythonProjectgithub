@@ -166,7 +166,7 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6"],
+        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6", "L1-7", "L1-8", "L1-9"],
         "wrong_cards": ["L1-W1", "L1-W2"],
         "cards": {
             # Easy mode cards (first 4)
@@ -177,7 +177,7 @@ LEVELS = [
             # Medium mode cards (6 total)
             "L1-5": "Student realises",
             "L1-6": "Retrieve ice pack",
-            # Hard mode cards (8 total, including 2 new ones)
+            # Hard mode cards (8 total)
             "L1-7": "Friend seeks help",
             "L1-8": "Squeeze ice pack",
             "L1-9": "Apply ice pack on bridge of the nose",
