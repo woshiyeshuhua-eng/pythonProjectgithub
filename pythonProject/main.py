@@ -32,62 +32,26 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": [
-            "L1-1", "L1-2", "L1-3", "L1-4",
-            "L1-5", "L1-6", "L1-7", "L1-8",
-        ],
+        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6"],
         "wrong_cards": ["L1-W1", "L1-W2"],
         "cards": {
-            "L1-1": "Student realises",
-            "L1-2": "Friend seeks help",
-            "L1-3": "Notify the teacher",
-            "L1-4": "Pinch bridge of the nose",
-            "L1-5": "Retrieve ice pack",
-            "L1-6": "Squeeze ice pack",
-            "L1-7": "Apply ice pack on bridge of the nose",
-            "L1-8": "Check for any bleeding",
-            "L1-W1": "Open the ice pack",
-            "L1-W2": "Tilt head back",
-        },
-        "difficulty_cards": {
-            "Easy": {
-                "L1-1": "Notify a teacher",
-                "L1-2": "Pinch the bridge of the nose",
-                "L1-3": "Continue pinching",
-                "L1-4": "Check for any bleeding",
-            },
-            "Medium": {
-                "L1-1": "Student realises",
-                "L1-2": "Notify a teacher",
-                "L1-3": "Pinch the bridge of the nose",
-                "L1-4": "Retrieve ice pack",
-                "L1-5": "Apply ice pack",
-                "L1-6": "Check for any bleeding",
-            },
-            "Hard": {
-                "L1-1": "Student realises",
-                "L1-2": "Friend seeks help",
-                "L1-3": "Notify the teacher",
-                "L1-4": "Pinch bridge of the nose",
-                "L1-5": "Retrieve ice pack",
-                "L1-6": "Squeeze ice pack",
-                "L1-7": "Apply ice pack on bridge of the nose",
-                "L1-8": "Check for any bleeding",
-                "L1-W1": "Open the ice pack",
-                "L1-W2": "Tilt head back",
-            },
+            "L1-1": "The student notices the nosebleed and sits upright",
+            "L1-2": "Pinch the soft part of the nose continuously",
+            "L1-3": "Lean slightly forward and breathe through the mouth",
+            "L1-4": "Check whether the bleeding has stopped",
+            "L1-5": "Place a cool compress on the face or nose area",
+            "L1-6": "Continue monitoring and get adult help if needed",
+            "L1-W1": "Tilt the head backwards",
+            "L1-W2": "Lie flat while the nose is bleeding",
         },
         "decisions": [
             {
-                "id": "easy_pinching_place",
+                "id": "easy_pinching_time",
                 "difficulty": "Easy",
                 "trigger": "L1-2",
-                "question": "Where do you pinch the nose?",
-                "options": [
-                    "Below bridge of the nose",
-                    "On the hard bone of the nose",
-                ],
-                "correct": "Below bridge of the nose",
+                "question": "How long do you pinch the nose?",
+                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
+                "correct": "10-15 mins",
             },
             {
                 "id": "medium_compress",
@@ -98,39 +62,22 @@ LEVELS = [
                 "correct": "Cool",
             },
             {
-                "id": "hard_teacher_bring",
+                "id": "hard_pinching_place",
                 "difficulty": "Hard",
                 "trigger": "L1-3",
-                "question": "What do you ask the teacher to bring?",
+                "question": "Where do you pinch the nose?",
                 "options": [
-                    "AED",
-                    "First Aid Bag",
-                    "Nothing",
+                    "Below bridge of the nose",
+                    "On the hard bone of the nose",
                 ],
-                "correct": "First Aid Bag",
-            },
-            {
-                "id": "hard_pinching_time",
-                "difficulty": "Hard",
-                "trigger": "L1-4",
-                "question": "How long do you pinch the nose?",
-                "options": [
-                    "5-10 mins",
-                    "10-15 mins",
-                    "20-30 mins",
-                ],
-                "correct": "10-15 mins",
+                "correct": "Below bridge of the nose",
             },
             {
                 "id": "hard_compress_time",
                 "difficulty": "Hard",
-                "trigger": "L1-7",
-                "question": "How long do you put the compress?",
-                "options": [
-                    "5-10 mins",
-                    "10-15 mins",
-                    "20-30 mins",
-                ],
+                "trigger": "L1-5",
+                "question": "How long do you put the cool compress?",
+                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
                 "correct": "10-15 mins",
             },
         ],
@@ -372,6 +319,7 @@ def empty_progress():
         "mode_stars": {},
         "attempt": None,
         "last_screen": "home",
+        "previous_screen": "home",
         "selected_level": 0,
         "difficulty": "Easy",
     }
@@ -484,6 +432,16 @@ def sanitise_progress(raw_value):
         if last_screen not in allowed_screens:
             last_screen = "home"
 
+        previous_screen = str(
+            data.get(
+                "previous_screen",
+                "home",
+            )
+        )
+
+        if previous_screen not in allowed_screens:
+            previous_screen = "home"
+
         attempt = data.get(
             "attempt"
         )
@@ -500,6 +458,7 @@ def sanitise_progress(raw_value):
             "mode_stars": mode_stars,
             "attempt": attempt,
             "last_screen": last_screen,
+            "previous_screen": previous_screen,
             "selected_level": selected_level,
             "difficulty": difficulty,
         }
@@ -697,6 +656,12 @@ def build_progress_payload():
                 "home",
             )
         ),
+        "previous_screen": str(
+            st.session_state.get(
+                "previous_screen",
+                "home",
+            )
+        ),
         "selected_level": int(
             st.session_state.get(
                 "selected_level",
@@ -841,6 +806,7 @@ def initialise_state(saved_progress):
 
     defaults = {
         "screen": saved_progress["last_screen"],
+        "previous_screen": saved_progress.get("previous_screen", "home"),
         "selected_level": saved_progress["selected_level"],
         "difficulty": saved_progress["difficulty"],
         "score": saved_progress["score"],
@@ -1030,6 +996,16 @@ def navigate(
     screen_name,
     level_index=None,
 ):
+    current_screen = str(
+        st.session_state.get(
+            "screen",
+            "home",
+        )
+    )
+
+    if current_screen != screen_name:
+        st.session_state.previous_screen = current_screen
+
     st.session_state.screen = (
         screen_name
     )
@@ -1142,14 +1118,10 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Return the number of scenario slots for the selected mode."""
+    """Easy uses 4 slots. Medium and Hard use 6 slots for Level 1."""
 
     if int(level_index) == 0:
-        if difficulty == "Easy":
-            return 4
-        if difficulty == "Medium":
-            return 6
-        return 8
+        return 4 if difficulty == "Easy" else 6
 
     return 6
 
@@ -1157,22 +1129,10 @@ def slot_count_for(level_index, difficulty):
 def correct_cards_for(level_index, level, difficulty):
     """Return the correct sequence required for this difficulty."""
 
-    if int(level_index) == 0:
-        if difficulty == "Easy":
-            return level["correct_cards"][:4]
-        if difficulty == "Medium":
-            return level["correct_cards"][:6]
-        return level["correct_cards"][:8]
+    if int(level_index) == 0 and difficulty == "Easy":
+        return level["correct_cards"][:4]
 
     return level["correct_cards"][:6]
-
-
-def scenario_text_for(level, difficulty, card_id):
-    """Return the text shown below each scenario picture."""
-
-    difficulty_cards = level.get("difficulty_cards", {})
-    mode_cards = difficulty_cards.get(difficulty, {})
-    return mode_cards.get(card_id, level["cards"].get(card_id, card_id))
 
 
 def decisions_for(level, difficulty):
@@ -1223,7 +1183,7 @@ def image_path_for_card(level_index, difficulty, card_id):
 def card_html(level_index, difficulty, level, card_id):
     """Create the draggable item, using the matching picture when available."""
 
-    description = scenario_text_for(level, difficulty, card_id)
+    description = level["cards"].get(card_id, card_id)
     image_path = image_path_for_card(
         level_index,
         difficulty,
@@ -1789,7 +1749,7 @@ def custom_puzzle_cards(level_index, difficulty, level):
         cards.append(
             {
                 "id": card_id,
-                "label": scenario_text_for(level, difficulty, card_id),
+                "label": level["cards"].get(card_id, card_id),
                 "image": encode_image_for_html(image_path),
             }
         )
@@ -1947,6 +1907,25 @@ def render_custom_image_puzzle():
             difficulty,
         )
     )
+
+    previous_screen = str(
+        st.session_state.get(
+            "previous_screen",
+            "scenario",
+        )
+    )
+
+    if previous_screen not in {
+        "home",
+        "map",
+        "difficulty",
+        "scenario",
+        "score",
+        "achievements",
+    }:
+        previous_screen = "scenario"
+
+    previous_screen_json = json.dumps(previous_screen)
 
     start_seconds = 0
     if st.session_state.start_time is not None:
@@ -2432,15 +2411,11 @@ function openParentScreen(screenName, extraParams = {{}}) {{
             params.set(key, String(value));
         }});
 
-        // Use a normal link targeted at the parent page. This works even
-        // when Streamlit blocks direct access to window.parent.location.
-        const link = document.createElement("a");
-        link.href = "?" + params.toString();
-        link.target = "_parent";
-        link.style.display = "none";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        const targetUrl = "?" + params.toString();
+
+        // Navigate the Streamlit parent page without reading
+        // window.parent.location, which is blocked inside the iframe.
+        window.open(targetUrl, "_parent");
     }} catch (error) {{
         message.textContent = "Unable to open the requested page.";
         console.error(error);
@@ -2507,9 +2482,10 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    // Return directly to the progress map page.
-    // The map page displays progress_map.png.
-    openParentScreen("map");
+    const previousScreen = {previous_screen_json};
+    openParentScreen(previousScreen, {{
+        level: {level_index}
+    }});
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
