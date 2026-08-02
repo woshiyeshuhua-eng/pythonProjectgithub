@@ -174,21 +174,53 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6"],
+        "correct_cards": [
+            "L1-1", "L1-2", "L1-3", "L1-4",
+            "L1-5", "L1-6", "L1-7", "L1-8",
+        ],
         "wrong_cards": ["L1-W1", "L1-W2"],
+        "difficulty_cards": {
+            "Easy": {
+                "L1-1": "Notify a teacher",
+                "L1-2": "Pinch the bridge of the nose",
+                "L1-3": "Continue pinching",
+                "L1-4": "Check for any bleeding",
+            },
+            "Medium": {
+                "L1-1": "Student realises",
+                "L1-2": "Notify a teacher",
+                "L1-3": "Pinch the bridge of the nose",
+                "L1-4": "Retrieve ice pack",
+                "L1-5": "Apply ice pack",
+                "L1-6": "Check for any bleeding",
+            },
+            "Hard": {
+                "L1-1": "Student realises",
+                "L1-2": "Friend seeks help",
+                "L1-3": "Notify the teacher",
+                "L1-4": "Pinch bridge of the nose",
+                "L1-5": "Retrieve ice pack",
+                "L1-6": "Squeeze ice pack",
+                "L1-7": "Apply ice pack on bridge of the nose",
+                "L1-8": "Check for any bleeding",
+                "L1-W1": "Open the ice pack",
+                "L1-W2": "Tilt head back",
+            },
+        },
         "cards": {
-            "L1-1": "The student notices the nosebleed and sits upright",
-            "L1-2": "Pinch the soft part of the nose continuously",
-            "L1-3": "Lean slightly forward and breathe through the mouth",
-            "L1-4": "Check whether the bleeding has stopped",
-            "L1-5": "Place a cool compress on the face or nose area",
-            "L1-6": "Continue monitoring and get adult help if needed",
-            "L1-W1": "Tilt the head backwards",
-            "L1-W2": "Lie flat while the nose is bleeding",
+            "L1-1": "Student realises",
+            "L1-2": "Notify a teacher",
+            "L1-3": "Pinch the nose",
+            "L1-4": "Continue first aid",
+            "L1-5": "Retrieve ice pack",
+            "L1-6": "Prepare ice pack",
+            "L1-7": "Apply ice pack",
+            "L1-8": "Check for any bleeding",
+            "L1-W1": "Open the ice pack",
+            "L1-W2": "Tilt head back",
         },
         "decisions": [
             {
-                # L1_E_2: where to pinch the nose
                 "id": "easy_pinching_place",
                 "difficulty": "Easy",
                 "trigger": "L1-2",
@@ -208,10 +240,17 @@ LEVELS = [
                 "correct": "Cool",
             },
             {
-                # L1_H_3: time to pinch the nose
-                "id": "hard_pinching_time",
+                "id": "hard_teacher_item",
                 "difficulty": "Hard",
                 "trigger": "L1-3",
+                "question": "What do you ask the teacher to bring?",
+                "options": ["AED", "First Aid Bag", "Nothing"],
+                "correct": "First Aid Bag",
+            },
+            {
+                "id": "hard_pinching_time",
+                "difficulty": "Hard",
+                "trigger": "L1-4",
                 "question": "How long do you pinch the nose?",
                 "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
                 "correct": "10-15 mins",
@@ -219,15 +258,15 @@ LEVELS = [
             {
                 "id": "hard_compress_time",
                 "difficulty": "Hard",
-                "trigger": "L1-5",
-                "question": "How long do you put the cool compress?",
+                "trigger": "L1-7",
+                "question": "How long do you put the compress?",
                 "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
                 "correct": "10-15 mins",
             },
         ],
         "hint": (
-            "Sit upright, lean slightly forward, pinch below the bridge "
-            "of the nose for 10-15 minutes and use a cool compress."
+            "Notify a teacher, pinch below the bridge of the nose, "
+            "continue pinching, use a cool compress and check the bleeding."
         ),
     },
     {
@@ -1264,19 +1303,20 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Easy uses 4 slots. Medium and Hard use 6 slots for Level 1."""
+    """Level 1 uses 4 Easy, 6 Medium and 8 Hard scenarios."""
 
     if int(level_index) == 0:
-        return 4 if difficulty == "Easy" else 6
+        return {"Easy": 4, "Medium": 6, "Hard": 8}.get(difficulty, 4)
 
     return 6
 
 
 def correct_cards_for(level_index, level, difficulty):
-    """Return the correct sequence required for this difficulty."""
+    """Return the exact sequence required for this difficulty."""
 
-    if int(level_index) == 0 and difficulty == "Easy":
-        return level["correct_cards"][:4]
+    if int(level_index) == 0:
+        count = {"Easy": 4, "Medium": 6, "Hard": 8}.get(difficulty, 4)
+        return level["correct_cards"][:count]
 
     return level["correct_cards"][:6]
 
@@ -1289,6 +1329,16 @@ def decisions_for(level, difficulty):
         for decision in level.get("decisions", [])
         if decision.get("difficulty") in (None, difficulty)
     ]
+
+
+def card_description_for(level_index, level, difficulty, card_id):
+    """Return the caption for the selected difficulty."""
+
+    mode_cards = level.get("difficulty_cards", {}).get(difficulty, {})
+    if card_id in mode_cards:
+        return str(mode_cards[card_id])
+
+    return str(level.get("cards", {}).get(card_id, card_id))
 
 
 def find_image_path(filename_without_extension):
@@ -1329,7 +1379,7 @@ def image_path_for_card(level_index, difficulty, card_id):
 def card_html(level_index, difficulty, level, card_id):
     """Create the draggable item, using the matching picture when available."""
 
-    description = level["cards"].get(card_id, card_id)
+    description = card_description_for(level_index, level, difficulty, card_id)
     image_path = image_path_for_card(
         level_index,
         difficulty,
@@ -1893,7 +1943,7 @@ def custom_puzzle_cards(level_index, difficulty, level):
         cards.append(
             {
                 "id": card_id,
-                "label": level["cards"].get(card_id, card_id),
+                "label": card_description_for(level_index, level, difficulty, card_id),
                 "image": encode_image_for_html(image_path),
             }
         )
@@ -2201,6 +2251,18 @@ def render_custom_image_puzzle():
 
         with st.container(key=container_key):
             st.image(image_path, width=image_width)
+
+            caption = card_description_for(
+                level_index, level, difficulty, card_id
+            )
+            st.markdown(
+                f"<div style='text-align:center;font-weight:800;"
+                f"font-size:{'0.82rem' if compact else '0.9rem'};"
+                f"line-height:1.2;min-height:2.4em;margin:5px 2px 4px;'>"
+                f"{caption}</div>",
+                unsafe_allow_html=True,
+            )
+
             button_label = "✓ SELECTED" if selected else "✓"
             if st.button(
                 button_label,
