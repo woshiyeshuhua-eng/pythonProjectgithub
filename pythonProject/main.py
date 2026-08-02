@@ -8,7 +8,6 @@ import urllib.parse
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
 
 
@@ -1996,43 +1995,8 @@ def submit_custom_result(payload):
 
 
 # -----------------------------------------------------------------------------
-# Built-in picture drag-and-drop component
+# Picture layout helpers
 # -----------------------------------------------------------------------------
-COMPONENT_DIR = BASE_DIR / ".first_aid_picture_sorter"
-COMPONENT_DIR.mkdir(exist_ok=True)
-COMPONENT_INDEX = COMPONENT_DIR / "index.html"
-
-COMPONENT_INDEX.write_text(
-    '''<!doctype html>
-<html><head><meta charset="utf-8"><style>
-*{box-sizing:border-box}body{margin:0;padding:10px;font-family:Arial,sans-serif;background:transparent;color:#202124}
-.shell{background:#fffaf0;border:5px solid #202124;border-radius:18px;padding:14px;box-shadow:8px 8px 0 #202124}
-.tray,.slot-body{border:4px dashed #202124;border-radius:14px;background:#eaf7ff;min-height:190px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
-.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.slot{border:4px dashed #202124;border-radius:14px;background:#f5f5f5;padding:8px;min-height:220px}.slot-title{font-weight:900;margin-bottom:7px}.slot-body{border:0;background:transparent;min-height:170px;align-items:center;justify-content:center;padding:0}
-.card{width:160px;max-width:100%;background:white;border:4px solid #202124;border-radius:12px;padding:7px;box-shadow:4px 4px 0 #202124;cursor:pointer;user-select:none;touch-action:manipulation}.card.selected{background:#fff0ae;outline:6px solid #ffca28;transform:translateY(-3px)}.card img{width:100%;height:130px;object-fit:contain;display:block;border-radius:8px}.label{font-size:12px;font-weight:700;text-align:center;line-height:1.2;margin-top:6px}.missing{height:130px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;font-weight:900}.dragover{background:#fff0ae!important}.slot-body,.tray{cursor:pointer}.help{font-weight:900;background:#fff0ae;border:3px solid #202124;border-radius:10px;padding:9px;margin-bottom:10px;text-align:center}
-@media(max-width:780px){.slots{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style></head><body><div id="root"></div><script>
-let args={};let layout=[];let dragged=null;let selected=null;
-function post(type,extra){window.parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},extra||{}),'*')}
-function send(value){post('streamlit:setComponentValue',{value:value})}
-function setHeight(){post('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+20})}
-function info(id){return (args.cards||[]).find(x=>x.id===id)||{id:id,label:id,image:''}}
-function refreshSelection(){document.querySelectorAll('.card').forEach(card=>{card.classList.toggle('selected',card.dataset.id===selected)})}
-function cardNode(id){const c=info(id),n=document.createElement('div');n.className='card'+(selected===id?' selected':'');n.draggable=true;n.dataset.id=id;if(c.image){const im=document.createElement('img');im.src=c.image;im.alt=c.label;im.draggable=false;n.appendChild(im)}else{const m=document.createElement('div');m.className='missing';m.textContent=id+' image missing';n.appendChild(m)}const l=document.createElement('div');l.className='label';l.textContent=c.label;n.appendChild(l);n.addEventListener('click',e=>{e.stopPropagation();selected=(selected===id?null:id);refreshSelection()});n.addEventListener('dragstart',e=>{dragged=id;selected=id;refreshSelection();e.dataTransfer.setData('text/plain',id);e.dataTransfer.effectAllowed='move'});n.addEventListener('dragend',()=>{dragged=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});return n}
-function moveCard(id,index){if(!id)return;let from=-1;layout.forEach((c,i)=>{if(c.items.includes(id))from=i});if(from<0||from===index){selected=null;render();return}if(index>0&&layout[index].items.length&&!layout[index].items.includes(id)){layout[0].items.push(layout[index].items[0]);layout[index].items=[]}layout[from].items=layout[from].items.filter(x=>x!==id);layout[index].items.push(id);selected=null;render();send({layout:layout,moved_card:id,revision:Date.now()})}function target(el,index){el.addEventListener('click',()=>{if(selected)moveCard(selected,index)});el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('dragover')});el.addEventListener('dragleave',()=>el.classList.remove('dragover'));el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain')||dragged||selected;moveCard(id,index)})}
-function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const help=document.createElement('div');help.className='help';help.textContent='Click a picture to select it, then click the correct slot. You may also drag the picture.';shell.appendChild(help);const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='CARD TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
-window.addEventListener('message',e=>{if(e.data&&e.data.type==='streamlit:render'){args=e.data.args||{};layout=JSON.parse(JSON.stringify(args.layout||[]));render()}});
-post('streamlit:componentReady',{apiVersion:1});setHeight();
-</script></body></html>''',
-    encoding="utf-8",
-)
-
-picture_sorter = components.declare_component(
-    "first_aid_picture_sorter",
-    path=str(COMPONENT_DIR),
-)
-
-
 def normalise_picture_layout(layout):
     cleaned = serialisable_layout(layout)
     if cleaned is None:
