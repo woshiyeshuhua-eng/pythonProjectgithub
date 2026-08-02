@@ -103,7 +103,7 @@ def clear_runtime_game_state():
     ]
 
     # Also clear statistics keys
-    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_")]
+    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
     keys_to_clear.extend(stats_keys)
 
     for key in keys_to_clear:
@@ -1009,7 +1009,7 @@ def reset_saved_progress():
     st.session_state.screen = "home"
 
     # Clear statistics
-    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_")]
+    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
     for key in stats_keys:
         st.session_state.pop(key, None)
 
@@ -1037,17 +1037,17 @@ def mode_key(
 
 
 # ============================================================
-# STATISTICS FUNCTIONS
+# STATISTICS FUNCTIONS - Differentiated by Level
 # ============================================================
 
-def get_stats_key(level_index, difficulty):
-    """Get the storage key for statistics of a specific level and difficulty."""
-    return f"stats_{int(level_index)}_{difficulty}"
+def get_stats_key(level_index):
+    """Get the storage key for statistics of a specific level."""
+    return f"stats_level_{int(level_index)}"
 
 
-def update_stats(level_index, difficulty, time_taken, moves_used):
+def update_stats(level_index, time_taken, moves_used):
     """Update the average time and moves for a level."""
-    stats_key = get_stats_key(level_index, difficulty)
+    stats_key = get_stats_key(level_index)
     
     # Initialize stats if not exists
     if stats_key not in st.session_state:
@@ -1069,15 +1069,11 @@ def update_stats(level_index, difficulty, time_taken, moves_used):
         stats["best_time"] = time_taken
     if stats["best_moves"] is None or moves_used < stats["best_moves"]:
         stats["best_moves"] = moves_used
-    
-    # Mark as completed if passed
-    if st.session_state.result and st.session_state.result.get("passed", False):
-        stats["completed"] = True
 
 
-def get_average_stats(level_index, difficulty):
+def get_average_stats(level_index):
     """Get the average time and moves for a level."""
-    stats_key = get_stats_key(level_index, difficulty)
+    stats_key = get_stats_key(level_index)
     
     if stats_key not in st.session_state:
         return None, None, None, None, None
@@ -1195,8 +1191,7 @@ def initialise_state(saved_progress):
                     level_index
                 )
                 st.session_state.difficulty = (
-                    difficulty
-                )
+                    difficulty                )
                 st.session_state.layout = (
                     copy.deepcopy(layout)
                 )
@@ -1984,8 +1979,8 @@ def evaluate_level():
 
         save_progress()
 
-    # Record statistics for this attempt
-    update_stats(level_index, difficulty, elapsed, st.session_state.moves)
+    # Record statistics for this attempt (by level only)
+    update_stats(level_index, elapsed, st.session_state.moves)
 
     st.session_state.result = {
         "passed": passed,
@@ -2166,8 +2161,8 @@ def submit_custom_result(payload):
         elif current_mode_key not in st.session_state.mode_stars:
             st.session_state.mode_stars[current_mode_key] = stars
 
-    # Record statistics for this attempt
-    update_stats(level_index, difficulty, elapsed, moves)
+    # Record statistics for this attempt (by level only)
+    update_stats(level_index, elapsed, moves)
 
     st.session_state.moves = moves
     st.session_state.start_time = time.time() - elapsed
@@ -4333,17 +4328,16 @@ elif screen == "result":
                 unsafe_allow_html=True,
             )
 
-        # Show statistics comparison
-        difficulty = st.session_state.difficulty
+        # Show statistics comparison (by level)
         avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
-            level_index, difficulty
+            level_index
         )
         
         if attempts is not None and attempts > 0:
             st.markdown(
                 (
                     '<div class="comic-panel" style="margin-top:20px;">'
-                    '<h3 style="margin-top:0;">📊 STATISTICS COMPARISON</h3>'
+                    '<h3 style="margin-top:0;">📊 LEVEL STATISTICS</h3>'
                     '</div>'
                 ),
                 unsafe_allow_html=True,
@@ -4383,7 +4377,7 @@ elif screen == "result":
                         delta="🏆" if result['moves'] == best_moves else None
                     )
             
-            st.caption(f"Total attempts for this mode: {attempts}")
+            st.caption(f"Total attempts for this level: {attempts}")
 
         if result["passed"]:
             if (
@@ -4574,6 +4568,11 @@ elif screen == "score":
     for level_index, level in enumerate(
         LEVELS
     ):
+        # Get statistics for this level (combined across all difficulties)
+        avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
+            level_index
+        )
+        
         st.markdown(
             (
                 '<div class="comic-panel">'
@@ -4585,6 +4584,33 @@ elif screen == "score":
             ),
             unsafe_allow_html=True,
         )
+        
+        # Show level statistics
+        if attempts is not None and attempts > 0:
+            st.markdown(
+                (
+                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
+                    f'background:#e3f2fd;border-radius:12px;border:3px solid #1565c0;">'
+                    f'<b>📊 LEVEL STATISTICS</b><br>'
+                    f'Average Time: <b>{avg_time}s</b> | '
+                    f'Average Moves: <b>{avg_moves}</b><br>'
+                    f'Best Time: <b>{best_time}s</b> | '
+                    f'Best Moves: <b>{best_moves}</b><br>'
+                    f'Total Attempts: <b>{attempts}</b>'
+                    f'</div>'
+                ),
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                (
+                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
+                    f'color:#999;font-style:italic;">'
+                    f'No attempts recorded for this level yet'
+                    f'</div>'
+                ),
+                unsafe_allow_html=True,
+            )
 
         mode_columns = st.columns(
             3
@@ -4619,11 +4645,6 @@ elif screen == "score":
                 )
             )
 
-            # Get average statistics
-            avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
-                level_index, difficulty
-            )
-
             if completed:
                 status = "✅ Completed"
             elif unlocked:
@@ -4647,31 +4668,6 @@ elif screen == "score":
                     ),
                     unsafe_allow_html=True,
                 )
-                
-                # Show statistics if any attempts exist
-                if attempts is not None and attempts > 0:
-                    st.markdown(
-                        (
-                            f'<div style="font-size:0.85rem;text-align:center;padding:8px;'
-                            f'background:#f5f5f5;border-radius:8px;border:2px solid #ddd;margin-top:4px;">'
-                            f'<b>📊 Stats</b><br>'
-                            f'Avg: {avg_time}s, {avg_moves} moves<br>'
-                            f'Best: {best_time}s, {best_moves} moves<br>'
-                            f'Attempts: {attempts}'
-                            f'</div>'
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        (
-                            f'<div style="font-size:0.8rem;text-align:center;padding:8px;'
-                            f'color:#999;font-style:italic;">'
-                            f'No attempts yet'
-                            f'</div>'
-                        ),
-                        unsafe_allow_html=True,
-                    )
 
     back_column, reset_column = (
         st.columns(2)
