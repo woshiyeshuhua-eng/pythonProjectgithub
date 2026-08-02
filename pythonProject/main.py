@@ -166,16 +166,16 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L1_E_1", "L1_E_2.png", "L1_E_3.png", "L1_E_4.png", "L1_M_1", "L1_M_2", "L1_M_3", "L1_M_4", "L1_M_5", "L1_M_6", "L1_H_1", "L1_H_2", "L1_H_3", "L1_H_4", "L1_H_5", "L1_H_6", "L1_H_7", "L1_H_8"],
+        "correct_cards": ["L1_E_1", "L1_E_2", "L1_E_3", "L1_E_4", "L1_M_1", "L1_M_2", "L1_M_3", "L1_M_4", "L1_M_5", "L1_M_6", "L1_H_1", "L1_H_2", "L1_H_3", "L1_H_4", "L1_H_5", "L1_H_6", "L1_H_7", "L1_H_8"],
         "wrong_cards": ["L1_H_W1", "L1_H_W2"],
         "cards": {
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
             # ============================================================
             "L1_E_1": "Notify a teacher",
-            "L1_E_2.png": "Pinch the bridge of the nose",
-            "L1_E_3.png": "Continue pinching",
-            "L1_E_4.png": "Check for any bleeding",
+            "L1_E_2": "Pinch the bridge of the nose",
+            "L1_E_3": "Continue pinching",
+            "L1_E_4": "Check for any bleeding",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
@@ -495,238 +495,6 @@ LEVELS = [
             "call for help and continue monitoring."
         ),
     },
-    {
-        "title": "Chemical Splash",
-        "setting": "Science Laboratory",
-        "story": (
-            "A chemical splashes onto a student's hand "
-            "during an experiment."
-        ),
-        "correct_cards": ["L4_E_1", "L4_E_2", "L4_E_3", "L4_E_4", "L4_M_1", "L4_M_2", "L4_M_3", "L4_M_4", "L4_M_5", "L4_M_6", "L4_H_1", "L4_H_2", "L4_H_3", "L4_H_4", "L4_H_5", "L4_H_6", "L4_H_7", "L4_H_8"],
-        "wrong_cards": ["L4_H_W1", "L4_H_W2"],
-        "cards": {
-            # ============================================================
-            # EASY MODE CARDS (first 4) - 4 cards total
-            # ============================================================
-            "L4_E_1": "Chemical splashes on hand",
-            "L4_E_2": "Move away from the chemical",
-            "L4_E_3": "Inform the teacher immediately",
-            "L4_E_4": "Rinse with running water",
-            
-            # ============================================================
-            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
-            # ============================================================
-            "L4_M_1": "Chemical splashes on hand",
-            "L4_M_2": "Move away from the chemical",
-            "L4_M_3": "Inform the teacher immediately",
-            "L4_M_4": "Rinse with running water",
-            "L4_M_5": "Rinse before covering",
-            "L4_M_6": "Teacher monitors the student",
-            
-            # ============================================================
-            # HARD MODE CARDS (8 total) - Medium cards + 3 more
-            # ============================================================
-            "L4_H_1": "Chemical splashes on hand",
-            "L4_H_2": "Move away from the chemical",
-            "L4_H_3": "Inform the teacher immediately",
-            "L4_H_4": "Rinse with running water",
-            "L4_H_5": "Rinse before covering",
-            "L4_H_6": "Teacher monitors the student",
-            "L4_H_7": "Remove contaminated clothing",
-            "L4_H_8": "Continue rinsing for 15-20 minutes",
-            
-            # ============================================================
-            # WRONG CARDS (2 total) - Only appear in Hard mode
-            # ============================================================
-            "L4_H_W1": "Apply another chemical",
-            "L4_H_W2": "Cover before rinsing",
-        },
-        "decisions": [
-            # ============================================================
-            # EASY MODE DECISIONS (1 decision)
-            # ============================================================
-            {
-                "id": "easy_chemical_rinse",
-                "difficulty": "Easy",
-                "trigger": "L4_E_4",
-                "question": "What should be used to rinse the chemical?",
-                "options": [
-                    "Running water",
-                    "Another chemical",
-                ],
-                "correct": "Running water",
-            },
-            
-            # ============================================================
-            # MEDIUM MODE DECISIONS (1 decision)
-            # ============================================================
-            {
-                "id": "medium_chemical_cover",
-                "difficulty": "Medium",
-                "trigger": "L4_M_5",
-                "question": "Should the area be covered before rinsing?",
-                "options": [
-                    "No, rinse first",
-                    "Yes, cover it immediately",
-                ],
-                "correct": "No, rinse first",
-            },
-            
-            # ============================================================
-            # HARD MODE DECISIONS (3 decisions)
-            # ============================================================
-            {
-                "id": "hard_chemical_remove",
-                "difficulty": "Hard",
-                "trigger": "L4_H_7",
-                "question": "What should you do with contaminated clothing?",
-                "options": [
-                    "Remove it carefully",
-                    "Leave it on",
-                ],
-                "correct": "Remove it carefully",
-            },
-            {
-                "id": "hard_chemical_time",
-                "difficulty": "Hard",
-                "trigger": "L4_H_8",
-                "question": "How long should you rinse the chemical?",
-                "options": [
-                    "15-20 minutes",
-                    "5-10 minutes",
-                ],
-                "correct": "15-20 minutes",
-            },
-            {
-                "id": "hard_chemical_teacher",
-                "difficulty": "Hard",
-                "trigger": "L4_H_3",
-                "question": "Who should be informed immediately?",
-                "options": [
-                    "The teacher",
-                    "A friend",
-                ],
-                "correct": "The teacher",
-            },
-        ],
-        "hint": (
-            "Move away from danger, alert the teacher "
-            "and rinse thoroughly with running water."
-        ),
-    },    {
-        "title": "Burn Injury",
-        "setting": "School Canteen",
-        "story": "A student accidentally touches a hot surface and suffers a minor burn.",
-        "correct_cards": ["L5_E_1", "L5_E_2", "L5_E_3", "L5_E_4", "L5_M_1", "L5_M_2", "L5_M_3", "L5_M_4", "L5_M_5", "L5_M_6", "L5_H_1", "L5_H_2", "L5_H_3", "L5_H_4", "L5_H_5", "L5_H_6", "L5_H_7", "L5_H_8"],
-        "wrong_cards": ["L5_H_W1", "L5_H_W2"],
-        "cards": {
-            # ============================================================
-            # EASY MODE CARDS (first 4) - 4 cards total
-            # ============================================================
-            "L5_E_1": "Move away from heat source",
-            "L5_E_2": "Inform a teacher",
-            "L5_E_3": "Cool the burn with running water",
-            "L5_E_4": "Seek medical help if needed",
-            
-            # ============================================================
-            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
-            # ============================================================
-            "L5_M_1": "Move away from heat source",
-            "L5_M_2": "Inform a teacher",
-            "L5_M_3": "Cool the burn with running water",
-            "L5_M_4": "Seek medical help if needed",
-            "L5_M_5": "Remove nearby jewellery",
-            "L5_M_6": "Cover the burn loosely",
-            
-            # ============================================================
-            # HARD MODE CARDS (8 total) - Medium cards + 3 more
-            # ============================================================
-            "L5_H_1": "Move away from heat source",
-            "L5_H_2": "Inform a teacher",
-            "L5_H_3": "Cool the burn with running water",
-            "L5_H_4": "Seek medical help if needed",
-            "L5_H_5": "Remove nearby jewellery",
-            "L5_H_6": "Cover the burn loosely",
-            "L5_H_7": "Cool for 10-15 minutes",
-            "L5_H_8": "Monitor the student",
-            
-            # ============================================================
-            # WRONG CARDS (2 total) - Only appear in Hard mode
-            # ============================================================
-            "L5_H_W1": "Put ice directly on the burn",
-            "L5_H_W2": "Apply toothpaste or butter",
-        },
-        "decisions": [
-            # ============================================================
-            # EASY MODE DECISIONS (1 decision)
-            # ============================================================
-            {
-                "id": "easy_burn_water",
-                "difficulty": "Easy",
-                "trigger": "L5_E_3",
-                "question": "What should be used to cool a minor burn?",
-                "options": [
-                    "Cool running water",
-                    "Ice directly on the skin",
-                ],
-                "correct": "Cool running water",
-            },
-            
-            # ============================================================
-            # MEDIUM MODE DECISIONS (1 decision)
-            # ============================================================
-            {
-                "id": "medium_burn_cover",
-                "difficulty": "Medium",
-                "trigger": "L5_M_6",
-                "question": "How should the burn be covered?",
-                "options": [
-                    "Loosely with a clean dressing",
-                    "Tightly with a dirty cloth",
-                ],
-                "correct": "Loosely with a clean dressing",
-            },
-            
-            # ============================================================
-            # HARD MODE DECISIONS (3 decisions)
-            # ============================================================
-            {
-                "id": "hard_burn_cool_time",
-                "difficulty": "Hard",
-                "trigger": "L5_H_7",
-                "question": "How long should the burn be cooled?",
-                "options": [
-                    "10-15 minutes",
-                    "5-10 minutes",
-                ],
-                "correct": "10-15 minutes",
-            },
-            {
-                "id": "hard_burn_jewellery",
-                "difficulty": "Hard",
-                "trigger": "L5_H_5",
-                "question": "What should be removed near the burn?",
-                "options": [
-                    "Jewellery",
-                    "Clothing only",
-                ],
-                "correct": "Jewellery",
-            },
-            {
-                "id": "hard_burn_monitor",
-                "difficulty": "Hard",
-                "trigger": "L5_H_8",
-                "question": "What should you do after treating the burn?",
-                "options": [
-                    "Monitor the student",
-                    "Leave the student alone",
-                ],
-                "correct": "Monitor the student",
-            },
-        ],
-        "hint": "Cool the burn with cool running water and cover it loosely with a clean dressing.",
-    },
-
 ]
 
 
@@ -748,18 +516,6 @@ BASE_TARGETS = [
         "three_moves": 14,
         "two_time": 100,
         "two_moves": 20,
-    },
-    {
-        "three_time": 80,
-        "three_moves": 15,
-        "two_time": 110,
-        "two_moves": 22,
-    },
-    {
-        "three_time": 90,
-        "three_moves": 16,
-        "two_time": 120,
-        "two_moves": 24,
     },
 ]
 
@@ -1531,8 +1287,6 @@ def level_unlocked(level_index):
     Easy mode of the immediately previous level:
     Level 2 <- Level 1 Easy
     Level 3 <- Level 2 Easy
-    Level 4 <- Level 3 Easy
-    Level 5 <- Level 4 Easy
     """
 
     level_index = int(level_index)
@@ -3464,7 +3218,7 @@ def show_top_bar():
         f'Score: {st.session_state.score}'
         f'</span>'
         f'<span class="status-pill">'
-        f'Stars: {total_stars()} / 45'
+        f'Stars: {total_stars()} / 27'
         f'</span>'
         '</div>'
         '</div>'
@@ -4523,12 +4277,12 @@ elif screen == "score":
             f'{st.session_state.score} POINTS'
             f'</h1>'
             f'<h2>'
-            f'{total_stars()} / 45 STARS'
+            f'{total_stars()} / 27 STARS'
             f'</h2>'
             f'<p>'
             f'Completed modes: '
             f'{len(st.session_state.completed_modes)} '
-            f'/ 15'
+            f'/ 9'
             f'</p>'
             '<p>'
             'Progress is automatically saved for '
@@ -4653,23 +4407,23 @@ elif screen == "achievements":
         ),
         (
             "HELPER HERO",
-            completed_mode_count >= 5,
+            completed_mode_count >= 3,
         ),
         (
             "LIFE SAVER",
-            completed_mode_count >= 10,
+            completed_mode_count >= 6,
         ),
         (
             "FIRST AID LEGEND",
-            completed_mode_count >= 15,
+            completed_mode_count >= 9,
         ),
         (
             "STAR COLLECTOR",
-            total_stars() >= 30,
+            total_stars() >= 18,
         ),
         (
             "PERFECT HERO",
-            total_stars() >= 45,
+            total_stars() >= 27,
         ),
     ]
 
