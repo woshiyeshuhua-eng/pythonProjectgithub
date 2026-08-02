@@ -2425,15 +2425,22 @@ function currentSequence() {{
 
 function openParentScreen(screenName, extraParams = {{}}) {{
     try {{
-        const parentUrl = new URL(window.parent.location.href);
-        parentUrl.search = "";
-        parentUrl.searchParams.set("screen", screenName);
+        const params = new URLSearchParams();
+        params.set("screen", screenName);
 
         Object.entries(extraParams).forEach(([key, value]) => {{
-            parentUrl.searchParams.set(key, String(value));
+            params.set(key, String(value));
         }});
 
-        window.parent.location.href = parentUrl.toString();
+        // Use a normal link targeted at the parent page. This works even
+        // when Streamlit blocks direct access to window.parent.location.
+        const link = document.createElement("a");
+        link.href = "?" + params.toString();
+        link.target = "_parent";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
     }} catch (error) {{
         message.textContent = "Unable to open the requested page.";
         console.error(error);
@@ -2500,18 +2507,9 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    try {{
-        // Return to the exact page the player visited immediately before
-        // entering this puzzle, such as the scenario or difficulty page.
-        if (window.parent.history.length > 1) {{
-            window.parent.history.back();
-        }} else {{
-            // Safe fallback when there is no usable browser history.
-            openParentScreen("difficulty", {{ level: {level_index} }});
-        }}
-    }} catch (error) {{
-        openParentScreen("difficulty", {{ level: {level_index} }});
-    }}
+    // Return directly to the progress map page.
+    // The map page displays progress_map.png.
+    openParentScreen("map");
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
