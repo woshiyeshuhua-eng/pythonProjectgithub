@@ -1396,8 +1396,8 @@ def find_image_path(filename_without_extension):
     possible_locations = [
         BASE_DIR,  # Same folder as main.py
         cwd,  # Current working directory
-        Path("/mount/src/pythonProjectgithub/pythonProject"),  # Streamlit Cloud path
-        Path("/mount/src/pythonProjectgithub"),  # Streamlit Cloud root
+        Path("/mount/src/pythonprojectgithub/pythonProject"),  # Streamlit Cloud path
+        Path("/mount/src/pythonprojectgithub"),  # Streamlit Cloud root
         Path("/app"),  # Another common Streamlit Cloud path
         Path("/app/pythonProject"),  # Another common Streamlit Cloud path
     ]
@@ -1427,23 +1427,16 @@ def find_image_path(filename_without_extension):
 
 def image_path_for_card(level_index, difficulty, card_id):
     """
-    Convert an internal card ID such as L1_E_1 or L1_H_W1 into:
-    L1_E_1.png, L1_M_5.png, L1_H_3.png, or L1_H_W1.png.
+    Find the image by using the card ID directly.
+
+    The card ID already matches the image filename without its extension:
+        L1_E_1  -> L1_E_1.png
+        L1_M_5  -> L1_M_5.png
+        L1_H_3  -> L1_H_3.png
+        L1_H_W1 -> L1_H_W1.png
     """
 
-    level_number = int(level_index) + 1
-    code = difficulty_code(difficulty)
-    
-    # Extract the suffix after the underscore
-    # L1_E_1 -> E_1, L1_H_W1 -> H_W1
-    parts = card_id.split("_")
-    if len(parts) >= 3:
-        suffix = "_".join(parts[1:])  # Get everything after level prefix
-    else:
-        suffix = parts[-1] if len(parts) > 1 else card_id
-    
-    return find_image_path(f"L{level_number}_{code}_{suffix}")
-
+    return find_image_path(str(card_id).strip())
 
 def card_html(level_index, difficulty, level, card_id):
     """Create the draggable item, using the matching picture when available."""
