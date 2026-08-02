@@ -2089,12 +2089,9 @@ COMPONENT_INDEX.write_text(
     --dark: #202124;
     --yellow: #ffca28;
     --cream: #fffaf0;
-    --blue: #eaf7ff;
 }
 
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -2102,10 +2099,6 @@ body {
     background: transparent;
     color: var(--dark);
     font-family: Arial, sans-serif;
-}
-
-.game-area {
-    width: 100%;
 }
 
 .section-title {
@@ -2126,14 +2119,12 @@ body {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
-    align-items: stretch;
     margin-bottom: 28px;
 }
 
 .card {
     position: relative;
     display: flex;
-    min-width: 0;
     min-height: 245px;
     flex-direction: column;
     align-items: center;
@@ -2145,10 +2136,8 @@ body {
     box-shadow: 6px 6px 0 var(--dark);
     cursor: pointer;
     user-select: none;
-    transition:
-        transform 120ms ease,
-        border-color 120ms ease,
-        background 120ms ease;
+    touch-action: none;
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
 .card:hover {
@@ -2159,6 +2148,10 @@ body {
     background: #fff4b8;
     border-color: var(--yellow);
     outline: 4px solid var(--dark);
+}
+
+.card.dragging {
+    opacity: 0.55;
 }
 
 .selected-badge {
@@ -2176,6 +2169,7 @@ body {
     box-shadow: 3px 3px 0 var(--dark);
     font-size: 21px;
     font-weight: 900;
+    pointer-events: none;
 }
 
 .card.selected .selected-badge {
@@ -2207,27 +2201,11 @@ body {
     pointer-events: none;
 }
 
-.missing {
-    display: flex;
-    width: 100%;
-    height: 172px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    background: #eee;
-    text-align: center;
-    font-weight: 900;
-}
-
 .sequence {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 22px 18px;
     align-items: start;
-}
-
-.scenario-wrap {
-    min-width: 0;
 }
 
 .scenario-label {
@@ -2255,23 +2233,13 @@ body {
     border-radius: 18px;
     background: rgba(255, 250, 240, 0.9);
     cursor: pointer;
-    transition:
-        background 120ms ease,
-        transform 120ms ease;
+    transition: background 120ms ease, transform 120ms ease;
 }
 
-.scenario-box:hover {
+.scenario-box:hover,
+.scenario-box.drag-over {
     background: #fff4b8;
     transform: translateY(-2px);
-}
-
-.scenario-box.disabled {
-    cursor: default;
-}
-
-.scenario-box.disabled:hover {
-    background: rgba(255, 250, 240, 0.9);
-    transform: none;
 }
 
 .scenario-box .card {
@@ -2316,47 +2284,30 @@ body {
     padding: 18px;
     border: 4px dashed var(--dark);
     border-radius: 14px;
-    background: var(--blue);
+    background: #eaf7ff;
     text-align: center;
     font-weight: 900;
 }
 
 @media (max-width: 1050px) {
-    .tray,
-    .sequence {
+    .tray, .sequence {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 760px) {
-    .tray,
-    .sequence {
+    .tray, .sequence {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .card {
-        min-height: 220px;
-    }
-
-    .card img,
-    .missing {
-        height: 145px;
-    }
-
-    .scenario-box {
-        min-height: 260px;
     }
 }
 
 @media (max-width: 430px) {
-    .tray,
-    .sequence {
+    .tray, .sequence {
         grid-template-columns: 1fr;
     }
 }
 </style>
 </head>
-
 <body>
 <div id="root"></div>
 
@@ -2364,27 +2315,24 @@ body {
 let args = {};
 let layout = [];
 let selectedCard = null;
+let draggedCard = null;
 
 function post(type, extra) {
     window.parent.postMessage(
-        Object.assign(
-            { isStreamlitMessage: true, type: type },
-            extra || {}
-        ),
+        Object.assign({ isStreamlitMessage: true, type }, extra || {}),
         "*"
     );
 }
 
 function send(value) {
-    post("streamlit:setComponentValue", { value: value });
+    post("streamlit:setComponentValue", { value });
 }
 
 function setHeight() {
-    window.requestAnimationFrame(() => {
-        post(
-            "streamlit:setFrameHeight",
-            { height: document.documentElement.scrollHeight + 16 }
-        );
+    requestAnimationFrame(() => {
+        post("streamlit:setFrameHeight", {
+            height: document.documentElement.scrollHeight + 18
+        });
     });
 }
 
@@ -2403,11 +2351,22 @@ function findCardContainer(cardId) {
     );
 }
 
+function emitSelection() {
+    send({
+        layout,
+        selected_card: selectedCard,
+        action: "select",
+        revision: Date.now()
+    });
+}
+
 function createCard(cardId) {
     const data = cardInfo(cardId);
     const card = document.createElement("div");
+
     card.className = "card";
     card.dataset.cardId = cardId;
+    card.draggable = true;
 
     if (selectedCard === cardId) {
         card.classList.add("selected");
@@ -2424,11 +2383,6 @@ function createCard(cardId) {
         image.alt = data.label;
         image.draggable = false;
         card.appendChild(image);
-    } else {
-        const missing = document.createElement("div");
-        missing.className = "missing";
-        missing.textContent = cardId + " image missing";
-        card.appendChild(missing);
     }
 
     const caption = document.createElement("div");
@@ -2437,29 +2391,45 @@ function createCard(cardId) {
     card.appendChild(caption);
 
     card.addEventListener("click", event => {
+        event.preventDefault();
         event.stopPropagation();
+
         selectedCard = selectedCard === cardId ? null : cardId;
         render();
+        emitSelection();
+    });
+
+    card.addEventListener("dragstart", event => {
+        draggedCard = cardId;
+        selectedCard = cardId;
+        card.classList.add("dragging");
+        event.dataTransfer.setData("text/plain", cardId);
+        event.dataTransfer.effectAllowed = "move";
+        render();
+        emitSelection();
+    });
+
+    card.addEventListener("dragend", () => {
+        draggedCard = null;
+        document.querySelectorAll(".drag-over")
+            .forEach(el => el.classList.remove("drag-over"));
     });
 
     return card;
 }
 
-function moveSelectedTo(targetIndex) {
-    if (!selectedCard) {
-        return;
-    }
+function moveCardTo(cardId, targetIndex) {
+    if (!cardId) return;
 
-    const cardId = selectedCard;
     const sourceIndex = findCardContainer(cardId);
 
     if (sourceIndex < 0 || sourceIndex === targetIndex) {
         selectedCard = null;
         render();
+        emitSelection();
         return;
     }
 
-    // A scenario holds only one card. Return the old card to the tray.
     if (
         targetIndex > 0 &&
         Array.isArray(layout[targetIndex].items) &&
@@ -2481,18 +2451,55 @@ function moveSelectedTo(targetIndex) {
         item => item !== cardId
     );
 
-    if (!layout[targetIndex].items.includes(cardId)) {
-        layout[targetIndex].items.push(cardId);
-    }
+    layout[targetIndex].items.push(cardId);
 
     selectedCard = null;
+    draggedCard = null;
+
     render();
 
     send({
-        layout: layout,
+        layout,
         moved_card: cardId,
         target_index: targetIndex,
+        selected_card: null,
+        action: "move",
         revision: Date.now()
+    });
+}
+
+function makeDropTarget(element, targetIndex) {
+    element.addEventListener("dragover", event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        element.classList.add("drag-over");
+    });
+
+    element.addEventListener("dragleave", () => {
+        element.classList.remove("drag-over");
+    });
+
+    element.addEventListener("drop", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        element.classList.remove("drag-over");
+
+        const cardId =
+            event.dataTransfer.getData("text/plain") ||
+            draggedCard ||
+            selectedCard;
+
+        moveCardTo(cardId, targetIndex);
+    });
+
+    element.addEventListener("click", event => {
+        if (event.target.closest(".card")) {
+            return;
+        }
+
+        if (selectedCard) {
+            moveCardTo(selectedCard, targetIndex);
+        }
     });
 }
 
@@ -2500,26 +2507,21 @@ function render() {
     const root = document.getElementById("root");
     root.innerHTML = "";
 
-    const area = document.createElement("div");
-    area.className = "game-area";
-
     const trayTitle = document.createElement("div");
     trayTitle.className = "section-title";
     trayTitle.textContent = "STORY TRAY";
-    area.appendChild(trayTitle);
+    root.appendChild(trayTitle);
 
     const help = document.createElement("div");
     help.className = "help";
     help.textContent =
-        "Click a picture to select it, then click the correct scenario box.";
-    area.appendChild(help);
+        "Click a picture to select it, then click a scenario box. You may also drag it.";
+    root.appendChild(help);
 
     const tray = document.createElement("div");
     tray.className = "tray";
 
-    const trayItems = layout[0] && Array.isArray(layout[0].items)
-        ? layout[0].items
-        : [];
+    const trayItems = layout[0]?.items || [];
 
     if (trayItems.length === 0) {
         const emptyTray = document.createElement("div");
@@ -2532,26 +2534,19 @@ function render() {
         });
     }
 
-    // A selected placed card can be returned by clicking the tray area.
-    tray.addEventListener("click", () => {
-        if (selectedCard) {
-            moveSelectedTo(0);
-        }
-    });
-
-    area.appendChild(tray);
+    makeDropTarget(tray, 0);
+    root.appendChild(tray);
 
     const sequenceTitle = document.createElement("div");
     sequenceTitle.className = "section-title";
     sequenceTitle.textContent = "STORY SEQUENCE";
-    area.appendChild(sequenceTitle);
+    root.appendChild(sequenceTitle);
 
     const sequence = document.createElement("div");
     sequence.className = "sequence";
 
     for (let index = 1; index < layout.length; index += 1) {
         const wrap = document.createElement("div");
-        wrap.className = "scenario-wrap";
 
         const label = document.createElement("div");
         label.className = "scenario-label";
@@ -2561,9 +2556,7 @@ function render() {
         const box = document.createElement("div");
         box.className = "scenario-box";
 
-        const items = Array.isArray(layout[index].items)
-            ? layout[index].items
-            : [];
+        const items = layout[index]?.items || [];
 
         if (items.length > 0) {
             box.appendChild(createCard(items[0]));
@@ -2583,44 +2576,27 @@ function render() {
             const sub = document.createElement("div");
             sub.className = "empty-help";
             sub.textContent = selectedCard
-                ? "Click to place the selected picture"
+                ? "Click to place selected picture"
                 : "Select a picture first";
             empty.appendChild(sub);
 
             box.appendChild(empty);
         }
 
-        box.addEventListener("click", event => {
-            if (
-                event.target.closest(".card") &&
-                selectedCard === null
-            ) {
-                return;
-            }
-
-            if (selectedCard) {
-                moveSelectedTo(index);
-            }
-        });
-
+        makeDropTarget(box, index);
         wrap.appendChild(box);
         sequence.appendChild(wrap);
     }
 
-    area.appendChild(sequence);
-    root.appendChild(area);
+    root.appendChild(sequence);
     setHeight();
 }
 
 window.addEventListener("message", event => {
-    if (
-        event.data &&
-        event.data.type === "streamlit:render"
-    ) {
+    if (event.data?.type === "streamlit:render") {
         args = event.data.args || {};
-        layout = JSON.parse(
-            JSON.stringify(args.layout || [])
-        );
+        layout = JSON.parse(JSON.stringify(args.layout || []));
+        selectedCard = args.selected_card || null;
         render();
     }
 });
@@ -2761,6 +2737,7 @@ def render_custom_image_puzzle():
     component_value = picture_sorter(
         layout=st.session_state.layout,
         cards=cards,
+        selected_card=st.session_state.get("selected_picture_card"),
         key=(
             "rewritten_story_component_"
             f"{st.session_state.custom_attempt_id}"
@@ -2776,12 +2753,26 @@ def render_custom_image_puzzle():
             and revision
             != st.session_state.get("picture_component_revision")
         ):
+            st.session_state.picture_component_revision = revision
+
+            action = component_value.get("action")
+            selected_card = component_value.get("selected_card")
+
+            if action == "select":
+                st.session_state.selected_picture_card = (
+                    str(selected_card)
+                    if selected_card
+                    else None
+                )
+                st.rerun()
+
             returned_layout = normalise_picture_layout(
                 component_value.get("layout")
             )
 
             if (
-                returned_layout is not None
+                action == "move"
+                and returned_layout is not None
                 and len(returned_layout)
                 == len(st.session_state.layout)
             ):
@@ -2813,7 +2804,6 @@ def render_custom_image_puzzle():
                 )
                 st.session_state.moves += 1
                 st.session_state.selected_picture_card = None
-                st.session_state.picture_component_revision = revision
 
                 if (
                     moved_card
