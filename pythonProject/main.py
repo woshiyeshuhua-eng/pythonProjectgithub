@@ -187,14 +187,6 @@ LEVELS = [
         },
         "decisions": [
             {
-                "id": "easy_pinching_time",
-                "difficulty": "Easy",
-                "trigger": "L1-2",
-                "question": "How long do you pinch the nose?",
-                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
-                "correct": "10-15 mins",
-            },
-            {
                 "id": "easy_pinching_place",
                 "difficulty": "Easy",
                 "trigger": "L1-2",
@@ -2274,7 +2266,7 @@ def render_custom_image_puzzle():
 
     # ---------------- HORIZONTAL CARD TRAY ----------------
     st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
-    st.markdown("### CARD TRAY")
+    st.markdown("### TRAY OF SCENARIOS")
     st.caption("Press the ✓ button below a picture, then press PLACE HERE in the correct story slot.")
 
     tray_ids = list(st.session_state.layout[0].get("items", []))
@@ -2298,7 +2290,7 @@ def render_custom_image_puzzle():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ---------------- SMALLER STORY SLOTS ----------------
-    st.markdown("### STORY SLOTS")
+    st.markdown("### STORY SEQUENCE")
     slot_total = len(st.session_state.layout) - 1
 
     for row_start in range(1, slot_total + 1, 3):
@@ -2312,7 +2304,7 @@ def render_custom_image_puzzle():
             with slot_columns[offset]:
                 st.markdown(
                     f"<div class='comic-panel' style='padding:12px;margin-bottom:12px;'>"
-                    f"<h3 style='margin:0 0 7px 0;'>SLOT {slot_index}</h3>",
+                    f"<h3 style='margin:0 0 7px 0;'>SCENARIO {slot_index}</h3>",
                     unsafe_allow_html=True,
                 )
 
@@ -2338,7 +2330,7 @@ def render_custom_image_puzzle():
                         "<div style='height:115px;display:flex;align-items:center;"
                         "justify-content:center;border:4px dashed #202124;"
                         "border-radius:14px;font-weight:900;font-size:0.9rem;'>"
-                        "EMPTY SLOT</div>",
+                        "EMPTY SCENARIO</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -2376,7 +2368,7 @@ def render_custom_image_puzzle():
             if st.session_state.pending_decision is not None:
                 st.warning("Confirm the current popup answer before pressing DONE.")
             elif not slots_complete(st.session_state.layout):
-                st.warning("Place one picture in every slot.")
+                st.warning("Place one picture in every scenario slot.")
             elif not decisions_complete(level):
                 unanswered = [
                     d for d in decisions_for(level, difficulty)
