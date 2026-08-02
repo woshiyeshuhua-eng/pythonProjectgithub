@@ -2463,8 +2463,27 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    // Return to the progress map page (progress_map image screen).
-    openParentScreen("map");
+    // Send a navigation request to the main Streamlit app.
+    // The parent app polls this Local Storage key every 250 ms and then
+    // opens the Level 1-5 progress map safely.
+    try {{
+        const navigationPayload = {{
+            screen: "map",
+            level: {level_index},
+            attempt_id: "{attempt_id}"
+        }};
+
+        window.localStorage.setItem(
+            {json.dumps(PUZZLE_NAV_STORAGE_KEY)},
+            JSON.stringify(navigationPayload)
+        );
+
+        message.style.color = "#202124";
+        message.textContent = "Returning to the level page...";
+    }} catch (error) {{
+        // Fallback for browsers that block Local Storage in the component.
+        openParentScreen("map");
+    }}
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
