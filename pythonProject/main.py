@@ -169,23 +169,37 @@ LEVELS = [
         "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6", "L1-7", "L1-8", "L1-9"],
         "wrong_cards": ["L1-W1", "L1-W2"],
         "cards": {
-            # Easy mode cards (first 4)
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
             "L1-1": "Notify a teacher",
             "L1-2": "Pinch the bridge of the nose",
             "L1-3": "Continue pinching",
             "L1-4": "Check for any bleeding",
-            # Medium mode cards (6 total)
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
             "L1-5": "Student realises",
             "L1-6": "Retrieve ice pack",
-            # Hard mode cards (8 total)
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
             "L1-7": "Friend seeks help",
             "L1-8": "Squeeze ice pack",
             "L1-9": "Apply ice pack on bridge of the nose",
-            # Wrong cards
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
             "L1-W1": "Open the ice pack",
             "L1-W2": "Tilt head back",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
                 "id": "easy_pinching_place",
                 "difficulty": "Easy",
@@ -197,6 +211,10 @@ LEVELS = [
                 ],
                 "correct": "Below bridge of the nose",
             },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
             {
                 "id": "medium_compress",
                 "difficulty": "Medium",
@@ -205,6 +223,10 @@ LEVELS = [
                 "options": ["Warm", "Hot", "Cold", "Cool"],
                 "correct": "Cool",
             },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
             {
                 "id": "hard_ask_teacher",
                 "difficulty": "Hard",
