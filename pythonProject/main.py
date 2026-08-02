@@ -2384,15 +2384,15 @@ function currentSequence() {{
 
 function openParentScreen(screenName, extraParams = {{}}) {{
     try {{
-        const parentUrl = new URL(window.parent.location.href);
-        parentUrl.search = "";
-        parentUrl.searchParams.set("screen", screenName);
+        const params = new URLSearchParams();
+        params.set("screen", screenName);
 
         Object.entries(extraParams).forEach(([key, value]) => {{
-            parentUrl.searchParams.set(key, String(value));
+            params.set(key, String(value));
         }});
 
-        window.parent.location.href = parentUrl.toString();
+        const targetUrl = window.location.pathname + "?" + params.toString();
+        window.top.location.href = targetUrl;
     }} catch (error) {{
         message.textContent = "Unable to open the requested page.";
         console.error(error);
@@ -2459,7 +2459,9 @@ document.getElementById("doneBtn").addEventListener("click", () => {{
 }});
 
 document.getElementById("backBtn").addEventListener("click", () => {{
-    openParentScreen("map");
+    openParentScreen("scenario", {{
+        level: {level_index}
+    }});
 }});
 
 document.getElementById("restartBtn").addEventListener("click", () => {{
