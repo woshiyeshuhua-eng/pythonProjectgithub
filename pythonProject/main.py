@@ -166,8 +166,8 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6", "L1-7", "L1-8", "L1-9"],
-        "wrong_cards": ["L1-W1", "L1-W2"],
+        "correct_cards": ["L1_E_1", "L1_E_2", "L1_E_3", "L1_E_4", "L1_M_1", "L1_M_2", "L1_M_3", "L1_M_4", "L1_M_5", "L1_M_6", "L1_H_1", "L1_H_2", "L1_H_3", "L1_H_4", "L1_H_5", "L1_H_6", "L1_H_7", "L1_H_8"],
+        "wrong_cards": ["L1_H_W1", "L1_H_W2"],
         "cards": {
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
