@@ -90,7 +90,7 @@ def clear_runtime_game_state():
         "previous_sequence", "moves", "start_time", "decision_answers",
         "pending_decision", "result", "show_hint", "sort_key",
         "slot_warning", "browser_progress_loaded", "attempt_restored",
-        "custom_attempt_id", "selected_picture_card", "selected_scenario",
+        "custom_attempt_id", "selected_picture_card",
         "pending_browser_action", "pending_browser_payload",
         "browser_action_revision", "browser_load_attempts",
         "browser_storage_ready", "open_home_after_login",
@@ -1008,7 +1008,6 @@ def initialise_state(saved_progress):
         "attempt_restored": False,
         "custom_attempt_id": "",
         "picture_component_revision": None,
-        "selected_scenario": None,
         "browser_load_attempts": 0,
         "browser_storage_ready": True,
         "open_home_after_login": False,
@@ -1492,7 +1491,6 @@ def start_puzzle():
     st.session_state.show_hint = False
     st.session_state.slot_warning = False
     st.session_state.selected_picture_card = None
-    st.session_state.selected_scenario = None
     st.session_state.sort_key += 1
     st.session_state.custom_attempt_id = (
         f"{level_index}-{difficulty}-{time.time_ns()}"
@@ -2082,537 +2080,27 @@ COMPONENT_DIR.mkdir(exist_ok=True)
 COMPONENT_INDEX = COMPONENT_DIR / "index.html"
 
 COMPONENT_INDEX.write_text(
-    r"""<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-:root {
-    --dark: #202124;
-    --yellow: #ffca28;
-    --cream: #fffaf0;
-}
-
-* { box-sizing: border-box; }
-
-body {
-    margin: 0;
-    padding: 8px;
-    background: transparent;
-    color: var(--dark);
-    font-family: Arial, sans-serif;
-}
-
-.section-title {
-    margin: 6px 0 10px;
-    font-size: 26px;
-    font-weight: 900;
-    letter-spacing: 1px;
-}
-
-.help {
-    margin-bottom: 14px;
-    color: #60656c;
-    font-size: 15px;
-    font-weight: 700;
-}
-
-.tray {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
-    margin-bottom: 28px;
-}
-
-.card {
-    position: relative;
-    display: flex;
-    min-height: 245px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 10px;
-    background: white;
-    border: 5px solid var(--dark);
-    border-radius: 16px;
-    box-shadow: 6px 6px 0 var(--dark);
-    cursor: pointer;
-    user-select: none;
-    touch-action: none;
-    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.card:hover {
-    transform: translateY(-3px);
-    background: #fffdf3;
-}
-
-.card.dragging {
-    opacity: 0.55;
-}
-
-.card img {
-    display: block;
-    width: 100%;
-    max-width: 210px;
-    height: 172px;
-    margin: 0 auto;
-    object-fit: contain;
-    border-radius: 10px;
-    pointer-events: none;
-}
-
-.card-caption {
-    display: flex;
-    min-height: 46px;
-    width: 100%;
-    align-items: center;
-    justify-content: center;
-    padding: 7px 4px 0;
-    text-align: center;
-    font-size: 15px;
-    font-weight: 900;
-    line-height: 1.2;
-    pointer-events: none;
-}
-
-.sequence {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 22px 18px;
-    align-items: start;
-}
-
-.scenario-label {
-    display: inline-block;
-    margin: 0 0 10px 2px;
-    padding: 6px 12px;
-    border: 4px solid var(--dark);
-    border-radius: 11px;
-    background: var(--cream);
-    box-shadow: 4px 4px 0 var(--dark);
-    font-size: 16px;
-    font-weight: 900;
-    line-height: 1;
-}
-
-.scenario-wrap.selected .scenario-label {
-    background: var(--yellow);
-}
-
-.scenario-box {
-    position: relative;
-    display: flex;
-    width: 100%;
-    min-height: 300px;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
-    border: 5px dashed var(--dark);
-    border-radius: 18px;
-    background: rgba(255, 250, 240, 0.9);
-    cursor: pointer;
-    transition: background 120ms ease, transform 120ms ease, outline 120ms ease;
-}
-
-.scenario-box:hover,
-.scenario-box.drag-over {
-    background: #fff4b8;
-    transform: translateY(-2px);
-}
-
-.scenario-wrap.selected .scenario-box {
-    background: #fff4b8;
-    outline: 6px solid var(--yellow);
-    outline-offset: 2px;
-}
-
-.scenario-wrap.selected .scenario-box::after {
-    content: "SELECTED";
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    padding: 5px 9px;
-    border: 3px solid var(--dark);
-    border-radius: 9px;
-    background: var(--yellow);
-    box-shadow: 3px 3px 0 var(--dark);
-    font-size: 12px;
-    font-weight: 900;
-}
-
-.scenario-box .card {
-    width: 100%;
-    min-height: 255px;
-    border-style: solid;
-    box-shadow: 5px 5px 0 var(--dark);
-}
-
-.empty-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #555b61;
-    text-align: center;
-    pointer-events: none;
-}
-
-.empty-icon {
-    width: 70px;
-    height: 70px;
-    margin-bottom: 16px;
-    border: 5px dashed #a7a7a7;
-    border-radius: 16px;
-}
-
-.empty-title {
-    font-size: 20px;
-    font-weight: 900;
-}
-
-.empty-help {
-    margin-top: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    opacity: 0.75;
-}
-
-.tray-empty {
-    grid-column: 1 / -1;
-    padding: 18px;
-    border: 4px dashed var(--dark);
-    border-radius: 14px;
-    background: #eaf7ff;
-    text-align: center;
-    font-weight: 900;
-}
-
-@media (max-width: 1050px) {
-    .tray, .sequence {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 760px) {
-    .tray, .sequence {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 430px) {
-    .tray, .sequence {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
-</head>
-<body>
-<div id="root"></div>
-
-<script>
-let args = {};
-let layout = [];
-let selectedScenario = null;
-let draggedCard = null;
-
-function post(type, extra) {
-    window.parent.postMessage(
-        Object.assign({ isStreamlitMessage: true, type }, extra || {}),
-        "*"
-    );
-}
-
-function send(value) {
-    post("streamlit:setComponentValue", { value });
-}
-
-function setHeight() {
-    requestAnimationFrame(() => {
-        post("streamlit:setFrameHeight", {
-            height: document.documentElement.scrollHeight + 18
-        });
-    });
-}
-
-function cardInfo(cardId) {
-    return (args.cards || []).find(card => card.id === cardId) || {
-        id: cardId,
-        label: cardId,
-        image: ""
-    };
-}
-
-function findCardContainer(cardId) {
-    return layout.findIndex(container =>
-        Array.isArray(container.items) &&
-        container.items.includes(cardId)
-    );
-}
-
-function emitScenarioSelection() {
-    send({
-        layout,
-        selected_scenario: selectedScenario,
-        action: "select_scenario",
-        revision: Date.now()
-    });
-}
-
-function moveCardTo(cardId, targetIndex) {
-    if (!cardId || !targetIndex || targetIndex < 1) {
-        return;
-    }
-
-    const sourceIndex = findCardContainer(cardId);
-
-    if (sourceIndex < 0 || sourceIndex === targetIndex) {
-        selectedScenario = null;
-        render();
-        emitScenarioSelection();
-        return;
-    }
-
-    // A scenario can contain only one picture.
-    if (
-        Array.isArray(layout[targetIndex].items) &&
-        layout[targetIndex].items.length > 0
-    ) {
-        const replacedCard = layout[targetIndex].items[0];
-
-        if (
-            replacedCard !== cardId &&
-            !layout[0].items.includes(replacedCard)
-        ) {
-            layout[0].items.push(replacedCard);
-        }
-
-        layout[targetIndex].items = [];
-    }
-
-    layout[sourceIndex].items = layout[sourceIndex].items.filter(
-        item => item !== cardId
-    );
-
-    layout[targetIndex].items.push(cardId);
-
-    selectedScenario = null;
-    draggedCard = null;
-
-    render();
-
-    send({
-        layout,
-        moved_card: cardId,
-        target_index: targetIndex,
-        selected_scenario: null,
-        action: "move",
-        revision: Date.now()
-    });
-}
-
-function createCard(cardId) {
-    const data = cardInfo(cardId);
-    const card = document.createElement("div");
-
-    card.className = "card";
-    card.dataset.cardId = cardId;
-    card.draggable = true;
-
-    if (data.image) {
-        const image = document.createElement("img");
-        image.src = data.image;
-        image.alt = data.label;
-        image.draggable = false;
-        card.appendChild(image);
-    }
-
-    const caption = document.createElement("div");
-    caption.className = "card-caption";
-    caption.textContent = data.label;
-    card.appendChild(caption);
-
-    card.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        if (selectedScenario !== null) {
-            moveCardTo(cardId, selectedScenario);
-        }
-    });
-
-    card.addEventListener("dragstart", event => {
-        draggedCard = cardId;
-        card.classList.add("dragging");
-        event.dataTransfer.setData("text/plain", cardId);
-        event.dataTransfer.effectAllowed = "move";
-    });
-
-    card.addEventListener("dragend", () => {
-        draggedCard = null;
-        document.querySelectorAll(".drag-over")
-            .forEach(el => el.classList.remove("drag-over"));
-    });
-
-    return card;
-}
-
-function makeDropTarget(element, targetIndex) {
-    element.addEventListener("dragover", event => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        element.classList.add("drag-over");
-    });
-
-    element.addEventListener("dragleave", () => {
-        element.classList.remove("drag-over");
-    });
-
-    element.addEventListener("drop", event => {
-        event.preventDefault();
-        event.stopPropagation();
-        element.classList.remove("drag-over");
-
-        const cardId =
-            event.dataTransfer.getData("text/plain") ||
-            draggedCard;
-
-        moveCardTo(cardId, targetIndex);
-    });
-}
-
-function render() {
-    const root = document.getElementById("root");
-    root.innerHTML = "";
-
-    const trayTitle = document.createElement("div");
-    trayTitle.className = "section-title";
-    trayTitle.textContent = "STORY TRAY";
-    root.appendChild(trayTitle);
-
-    const help = document.createElement("div");
-    help.className = "help";
-    help.textContent =
-        "Select a scenario first, then click the picture you want to place there.";
-    root.appendChild(help);
-
-    const tray = document.createElement("div");
-    tray.className = "tray";
-
-    const trayItems = layout[0]?.items || [];
-
-    if (trayItems.length === 0) {
-        const emptyTray = document.createElement("div");
-        emptyTray.className = "tray-empty";
-        emptyTray.textContent = "All pictures have been placed.";
-        tray.appendChild(emptyTray);
-    } else {
-        trayItems.forEach(cardId => {
-            tray.appendChild(createCard(cardId));
-        });
-    }
-
-    root.appendChild(tray);
-
-    const sequenceTitle = document.createElement("div");
-    sequenceTitle.className = "section-title";
-    sequenceTitle.textContent = "STORY SEQUENCE";
-    root.appendChild(sequenceTitle);
-
-    const sequence = document.createElement("div");
-    sequence.className = "sequence";
-
-    for (let index = 1; index < layout.length; index += 1) {
-        const wrap = document.createElement("div");
-        wrap.className = "scenario-wrap";
-
-        if (selectedScenario === index) {
-            wrap.classList.add("selected");
-        }
-
-        const label = document.createElement("div");
-        label.className = "scenario-label";
-        label.textContent = "SCENARIO " + index;
-        wrap.appendChild(label);
-
-        const box = document.createElement("div");
-        box.className = "scenario-box";
-
-        const items = layout[index]?.items || [];
-
-        if (items.length > 0) {
-            box.appendChild(createCard(items[0]));
-        } else {
-            const empty = document.createElement("div");
-            empty.className = "empty-content";
-
-            const icon = document.createElement("div");
-            icon.className = "empty-icon";
-            empty.appendChild(icon);
-
-            const title = document.createElement("div");
-            title.className = "empty-title";
-            title.textContent = "SELECT SCENARIO";
-            empty.appendChild(title);
-
-            const sub = document.createElement("div");
-            sub.className = "empty-help";
-            sub.textContent = (
-                selectedScenario === index
-                ? "Now click a picture in the Story Tray"
-                : "Click this box first"
-            );
-            empty.appendChild(sub);
-
-            box.appendChild(empty);
-        }
-
-        box.addEventListener("click", event => {
-            if (event.target.closest(".card")) {
-                return;
-            }
-
-            selectedScenario = (
-                selectedScenario === index
-                ? null
-                : index
-            );
-
-            render();
-            emitScenarioSelection();
-        });
-
-        makeDropTarget(box, index);
-
-        wrap.appendChild(box);
-        sequence.appendChild(wrap);
-    }
-
-    root.appendChild(sequence);
-    setHeight();
-}
-
-window.addEventListener("message", event => {
-    if (event.data?.type === "streamlit:render") {
-        args = event.data.args || {};
-        layout = JSON.parse(JSON.stringify(args.layout || []));
-        selectedScenario = (
-            args.selected_scenario === null ||
-            args.selected_scenario === undefined
-        )
-            ? null
-            : Number(args.selected_scenario);
-
-        render();
-    }
-});
-
-post("streamlit:componentReady", { apiVersion: 1 });
-setHeight();
-</script>
-</body>
-</html>
-""",
+    '''<!doctype html>
+<html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:10px;font-family:Arial,sans-serif;background:transparent;color:#202124}
+.shell{background:#fffaf0;border:5px solid #202124;border-radius:18px;padding:14px;box-shadow:8px 8px 0 #202124}
+.tray,.slot-body{border:4px dashed #202124;border-radius:14px;background:#eaf7ff;min-height:190px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.slots{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.slot{border:4px dashed #202124;border-radius:14px;background:#f5f5f5;padding:8px;min-height:220px}.slot-title{font-weight:900;margin-bottom:7px}.slot-body{border:0;background:transparent;min-height:170px;align-items:center;justify-content:center;padding:0}
+.card{width:160px;max-width:100%;background:white;border:4px solid #202124;border-radius:12px;padding:7px;box-shadow:4px 4px 0 #202124;cursor:pointer;user-select:none;touch-action:manipulation}.card.selected{background:#fff0ae;outline:6px solid #ffca28;transform:translateY(-3px)}.card img{width:100%;height:130px;object-fit:contain;display:block;border-radius:8px}.label{font-size:12px;font-weight:700;text-align:center;line-height:1.2;margin-top:6px}.missing{height:130px;display:flex;align-items:center;justify-content:center;background:#eee;border-radius:8px;font-weight:900}.dragover{background:#fff0ae!important}.slot-body,.tray{cursor:pointer}.help{font-weight:900;background:#fff0ae;border:3px solid #202124;border-radius:10px;padding:9px;margin-bottom:10px;text-align:center}
+@media(max-width:780px){.slots{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head><body><div id="root"></div><script>
+let args={};let layout=[];let dragged=null;let selected=null;
+function post(type,extra){window.parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},extra||{}),'*')}
+function send(value){post('streamlit:setComponentValue',{value:value})}
+function setHeight(){post('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+20})}
+function info(id){return (args.cards||[]).find(x=>x.id===id)||{id:id,label:id,image:''}}
+function refreshSelection(){document.querySelectorAll('.card').forEach(card=>{card.classList.toggle('selected',card.dataset.id===selected)})}
+function cardNode(id){const c=info(id),n=document.createElement('div');n.className='card'+(selected===id?' selected':'');n.draggable=true;n.dataset.id=id;if(c.image){const im=document.createElement('img');im.src=c.image;im.alt=c.label;im.draggable=false;n.appendChild(im)}else{const m=document.createElement('div');m.className='missing';m.textContent=id+' image missing';n.appendChild(m)}const l=document.createElement('div');l.className='label';l.textContent=c.label;n.appendChild(l);n.addEventListener('click',e=>{e.stopPropagation();selected=(selected===id?null:id);refreshSelection()});n.addEventListener('dragstart',e=>{dragged=id;selected=id;refreshSelection();e.dataTransfer.setData('text/plain',id);e.dataTransfer.effectAllowed='move'});n.addEventListener('dragend',()=>{dragged=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});return n}
+function moveCard(id,index){if(!id)return;let from=-1;layout.forEach((c,i)=>{if(c.items.includes(id))from=i});if(from<0||from===index){selected=null;render();return}if(index>0&&layout[index].items.length&&!layout[index].items.includes(id)){layout[0].items.push(layout[index].items[0]);layout[index].items=[]}layout[from].items=layout[from].items.filter(x=>x!==id);layout[index].items.push(id);selected=null;render();send({layout:layout,moved_card:id,revision:Date.now()})}function target(el,index){el.addEventListener('click',()=>{if(selected)moveCard(selected,index)});el.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='move';el.classList.add('dragover')});el.addEventListener('dragleave',()=>el.classList.remove('dragover'));el.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();el.classList.remove('dragover');const id=e.dataTransfer.getData('text/plain')||dragged||selected;moveCard(id,index)})}
+function render(){const root=document.getElementById('root');root.innerHTML='';const shell=document.createElement('div');shell.className='shell';const help=document.createElement('div');help.className='help';help.textContent='Click a picture to select it, then click the correct slot. You may also drag the picture.';shell.appendChild(help);const title=document.createElement('div');title.style.fontWeight='900';title.style.marginBottom='7px';title.textContent='STORY TRAY';shell.appendChild(title);const tray=document.createElement('div');tray.className='tray';(layout[0]?.items||[]).forEach(id=>tray.appendChild(cardNode(id)));target(tray,0);shell.appendChild(tray);const slots=document.createElement('div');slots.className='slots';for(let i=1;i<layout.length;i++){const slot=document.createElement('div');slot.className='slot';const t=document.createElement('div');t.className='slot-title';t.textContent=layout[i].header;slot.appendChild(t);const body=document.createElement('div');body.className='slot-body';layout[i].items.forEach(id=>body.appendChild(cardNode(id)));target(body,i);slot.appendChild(body);slots.appendChild(slot)}shell.appendChild(slots);root.appendChild(shell);setTimeout(setHeight,20)}
+window.addEventListener('message',e=>{if(e.data&&e.data.type==='streamlit:render'){args=e.data.args||{};layout=JSON.parse(JSON.stringify(args.layout||[]));render()}});
+post('streamlit:componentReady',{apiVersion:1});setHeight();
+</script></body></html>''',
     encoding="utf-8",
 )
 
@@ -2669,7 +2157,11 @@ def show_decision_question_dialog(level, pending_id):
 
 
 def render_custom_image_puzzle():
-    """Render the rewritten Story Tray and Story Sequence component."""
+    """Reliable native Streamlit picture-placement game.
+
+    The player selects a picture and then presses PLACE HERE in a slot.
+    This avoids iframe drag/drop restrictions on Streamlit Community Cloud.
+    """
 
     level_index = st.session_state.selected_level
     difficulty = st.session_state.difficulty
@@ -2679,219 +2171,495 @@ def render_custom_image_puzzle():
         start_puzzle()
         return
 
-    st.session_state.layout = normalise_picture_layout(
-        st.session_state.layout
-    )
-
+    st.session_state.layout = normalise_picture_layout(st.session_state.layout)
     if st.session_state.previous_layout is not None:
         st.session_state.previous_layout = normalise_picture_layout(
             st.session_state.previous_layout
         )
 
-    # ---------------------- STATUS AT THE TOP ----------------------
-    status_1, status_2, status_3 = st.columns(3)
+    if "selected_picture_card" not in st.session_state:
+        st.session_state.selected_picture_card = None
 
+    def card_image(card_id):
+        return image_path_for_card(level_index, difficulty, card_id)
+
+    def render_clickable_picture(card_id, location_key, compact=False):
+        """Render an image-only comic card that is clickable anywhere.
+
+        A transparent native Streamlit button covers the full card, so the
+        player clicks the picture itself instead of a separate black button.
+        """
+
+        image_path = card_image(card_id)
+        if image_path is None:
+            st.info(f"Image missing: {card_id}")
+            return
+
+        selected = st.session_state.selected_picture_card == card_id
+        safe_location = re.sub(r"[^A-Za-z0-9_]", "_", location_key)
+        container_key = f"picture_card_{safe_location}"
+        button_key = (
+            f"select_picture_{safe_location}_"
+            f"{st.session_state.custom_attempt_id}"
+        )
+
+        border_colour = "#ffca28" if selected else "#202124"
+        background_colour = "#fff0ae" if selected else "#ffffff"
+        image_width = 142 if compact else 165
+        image_height = 138 if compact else 160
+
+        st.markdown(
+            f"""
+            <style>
+            .st-key-{container_key} {{
+                position: relative;
+                background: {background_colour};
+                border: 5px solid {border_colour};
+                border-radius: 16px;
+                box-shadow: 5px 5px 0 #202124;
+                padding: 9px;
+                margin-bottom: 12px;
+                overflow: visible;
+                transition: transform 0.12s ease;
+            }}
+
+            .st-key-{container_key}:hover {{
+                transform: translateY(-2px);
+            }}
+
+            .st-key-{container_key} [data-testid="stImage"] {{
+                display: flex;
+                justify-content: center;
+                margin: 0;
+                pointer-events: none;
+            }}
+
+            .st-key-{container_key} [data-testid="stImage"] img {{
+                border-radius: 10px;
+                object-fit: contain;
+                max-height: {image_height}px;
+                pointer-events: none;
+            }}
+
+            .st-key-{container_key} .scenario-caption {{
+                text-align: center;
+                font-weight: 800;
+                font-size: {'0.78rem' if compact else '0.88rem'};
+                line-height: 1.18;
+                min-height: 2.3em;
+                margin: 5px 2px 3px;
+                pointer-events: none;
+            }}
+
+            /* Cover the complete card with a transparent native button. */
+            .st-key-{container_key} div.stButton {{
+                position: absolute;
+                inset: 0;
+                z-index: 20;
+                margin: 0 !important;
+                padding: 0 !important;
+            }}
+
+            .st-key-{container_key} div.stButton > button {{
+                position: absolute;
+                inset: 0;
+                width: 100% !important;
+                height: 100% !important;
+                min-height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 12px !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                color: transparent !important;
+                font-size: 0 !important;
+                cursor: pointer !important;
+            }}
+
+            .st-key-{container_key} div.stButton > button:hover,
+            .st-key-{container_key} div.stButton > button:focus {{
+                background: rgba(255, 202, 40, 0.10) !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                color: transparent !important;
+            }}
+
+            .st-key-{container_key} .selected-badge {{
+                position: absolute;
+                right: -8px;
+                top: -8px;
+                z-index: 30;
+                width: 34px;
+                height: 34px;
+                display: {'flex' if selected else 'none'};
+                align-items: center;
+                justify-content: center;
+                border: 4px solid #202124;
+                border-radius: 50%;
+                background: #ffca28;
+                color: #202124;
+                font-weight: 900;
+                box-shadow: 3px 3px 0 #202124;
+                pointer-events: none;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.container(key=container_key):
+            st.markdown(
+                '<div class="selected-badge">✓</div>',
+                unsafe_allow_html=True,
+            )
+            st.image(image_path, width=image_width)
+
+            caption = card_description_for(
+                level_index, level, difficulty, card_id
+            )
+            st.markdown(
+                f'<div class="scenario-caption">{caption}</div>',
+                unsafe_allow_html=True,
+            )
+
+            if st.button(
+                "Select this picture",
+                key=button_key,
+                help="Click to select this picture",
+                use_container_width=True,
+            ):
+                current = st.session_state.get("selected_picture_card")
+                st.session_state.selected_picture_card = (
+                    None if current == card_id else card_id
+                )
+                st.rerun()
+
+
+    # ---------------------- STATUS AT THE TOP ---------------------
+    status_1, status_2, status_3 = st.columns(3)
     with status_1:
         st.markdown(
             '<div class="stat-box"><div>DIFFICULTY</div>'
             f'<span>{difficulty}</span></div>',
             unsafe_allow_html=True,
         )
-
     with status_2:
         st.markdown(
             '<div class="stat-box"><div>MOVES</div>'
             f'<span>{st.session_state.moves}</span></div>',
             unsafe_allow_html=True,
         )
-
     with status_3:
         live_timer()
 
+    # Show the decision question over the game as a centred popup.
     pending_id = st.session_state.pending_decision
     if pending_id:
         show_decision_question_dialog(level, pending_id)
 
-    cards = []
-    all_card_ids = []
+    def move_selected_to(target_index):
+        selected = st.session_state.get("selected_picture_card")
+        if not selected:
+            st.warning("Select one picture first.")
+            return
 
-    for container in st.session_state.layout:
-        for card_id in container.get("items", []):
-            if card_id not in all_card_ids:
-                all_card_ids.append(card_id)
+        layout = copy.deepcopy(st.session_state.layout)
+        old_sequence = sequence_from_layout(layout)
 
-    for card_id in all_card_ids:
-        image_path = image_path_for_card(
-            level_index,
-            difficulty,
-            card_id,
-        )
+        source_index = None
+        for index, container in enumerate(layout):
+            if selected in container.get("items", []):
+                source_index = index
+                break
 
-        cards.append(
-            {
-                "id": card_id,
-                "label": card_description_for(
-                    level_index,
-                    level,
-                    difficulty,
+        if source_index is None:
+            st.session_state.selected_picture_card = None
+            st.warning("That picture is no longer available. Select it again.")
+            return
+
+        if source_index == target_index:
+            st.session_state.selected_picture_card = None
+            st.rerun()
+
+        # A slot accepts only one picture. Return its old picture to the tray.
+        if target_index > 0 and layout[target_index].get("items"):
+            old_card = layout[target_index]["items"][0]
+            if old_card != selected and old_card not in layout[0]["items"]:
+                layout[0]["items"].append(old_card)
+            layout[target_index]["items"] = []
+
+        layout[source_index]["items"] = [
+            item for item in layout[source_index].get("items", [])
+            if item != selected
+        ]
+
+        if selected not in layout[target_index]["items"]:
+            layout[target_index]["items"].append(selected)
+
+        new_sequence = sequence_from_layout(layout)
+        new_decision = detect_new_decision(level, old_sequence, new_sequence)
+
+        st.session_state.layout = layout
+        st.session_state.previous_layout = copy.deepcopy(layout)
+        st.session_state.previous_sequence = list(new_sequence)
+        st.session_state.moves += 1
+        st.session_state.selected_picture_card = None
+
+        if new_decision is not None and st.session_state.pending_decision is None:
+            st.session_state.pending_decision = new_decision
+
+        save_progress()
+        st.rerun()
+
+    # ---------------- HORIZONTAL STORY TRAY ----------------
+    st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
+    st.markdown("### STORY TRAY")
+    st.caption("Click a picture to select it, then click the correct scenario box.")
+
+    tray_ids = list(st.session_state.layout[0].get("items", []))
+
+    if not tray_ids:
+        st.success("All pictures have been placed.")
+    else:
+        tray_columns = st.columns(min(4, len(tray_ids)), gap="medium")
+
+        for card_position, card_id in enumerate(tray_ids):
+            with tray_columns[card_position % len(tray_columns)]:
+                render_clickable_picture(
                     card_id,
-                ),
-                "image": encode_image_for_html(image_path),
-            }
-        )
+                    f"tray_{card_position}_{card_id}",
+                    compact=False,
+                )
 
-    component_value = picture_sorter(
-        layout=st.session_state.layout,
-        cards=cards,
-        selected_scenario=st.session_state.get("selected_scenario"),
-        key=(
-            "rewritten_story_component_"
-            f"{st.session_state.custom_attempt_id}"
-        ),
-        default=None,
+    selected_card = st.session_state.get("selected_picture_card")
+    if selected_card:
+        st.success("Picture selected. Choose a scenario below.")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ---------------- STORY SEQUENCE ----------------
+    st.markdown("### STORY SEQUENCE")
+    slot_total = len(st.session_state.layout) - 1
+
+    st.markdown(
+        """
+        <style>
+        .scenario-label-small {
+            display: inline-block;
+            background: #fffaf0;
+            border: 4px solid #202124;
+            border-radius: 11px;
+            box-shadow: 4px 4px 0 #202124;
+            padding: 5px 11px;
+            margin: 3px 0 10px 1px;
+            font-family: "Bangers", cursive;
+            font-size: 1.08rem;
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+
+        .scenario-drop-visual {
+            height: 250px;
+            border: 4px dashed #202124;
+            border-radius: 16px;
+            background: rgba(255, 250, 240, 0.82);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .scenario-drop-icon {
+            width: 64px;
+            height: 64px;
+            border: 4px dashed #a7a7a7;
+            border-radius: 14px;
+            margin-bottom: 12px;
+        }
+
+        .scenario-drop-main {
+            font-size: 1.05rem;
+            letter-spacing: 0.5px;
+        }
+
+        .scenario-drop-sub {
+            margin-top: 7px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            opacity: 0.7;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
 
-    if isinstance(component_value, dict):
-        revision = component_value.get("revision")
+    for row_start in range(1, slot_total + 1, 3):
+        slot_columns = st.columns(3, gap="medium")
 
-        if (
-            revision is not None
-            and revision
-            != st.session_state.get("picture_component_revision")
-        ):
-            st.session_state.picture_component_revision = revision
+        for offset in range(3):
+            slot_index = row_start + offset
+            if slot_index > slot_total:
+                continue
 
-            action = component_value.get("action")
-
-            if action == "select_scenario":
-                selected_scenario = component_value.get(
-                    "selected_scenario"
-                )
-                st.session_state.selected_scenario = (
-                    int(selected_scenario)
-                    if selected_scenario not in (None, "")
-                    else None
-                )
-                st.rerun()
-
-            returned_layout = normalise_picture_layout(
-                component_value.get("layout")
-            )
-
-            if (
-                action == "move"
-                and returned_layout is not None
-                and len(returned_layout)
-                == len(st.session_state.layout)
-            ):
-                old_sequence = sequence_from_layout(
-                    st.session_state.layout
-                )
-                new_sequence = sequence_from_layout(
-                    returned_layout
+            with slot_columns[offset]:
+                st.markdown(
+                    f"<div class='scenario-label-small'>"
+                    f"SCENARIO {slot_index}</div>",
+                    unsafe_allow_html=True,
                 )
 
-                moved_card = extract_card_id(
-                    component_value.get("moved_card", "")
-                )
+                slot_items = st.session_state.layout[slot_index].get("items", [])
 
-                new_decision = detect_new_decision(
-                    level,
-                    old_sequence,
-                    new_sequence,
-                )
+                if slot_items:
+                    card_id = slot_items[0]
+                    render_clickable_picture(
+                        card_id,
+                        f"slot_{slot_index}_{card_id}",
+                        compact=True,
+                    )
 
-                st.session_state.layout = copy.deepcopy(
-                    returned_layout
-                )
-                st.session_state.previous_layout = copy.deepcopy(
-                    returned_layout
-                )
-                st.session_state.previous_sequence = list(
-                    new_sequence
-                )
-                st.session_state.moves += 1
-                st.session_state.selected_picture_card = None
-                st.session_state.selected_scenario = None
+                    if st.button(
+                        "RETURN TO TRAY",
+                        key=(
+                            f"return_slot_{slot_index}_"
+                            f"{st.session_state.custom_attempt_id}"
+                        ),
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_picture_card = card_id
+                        move_selected_to(0)
 
-                if (
-                    moved_card
-                    and new_decision is not None
-                    and st.session_state.pending_decision is None
-                ):
-                    st.session_state.pending_decision = new_decision
+                else:
+                    # Make the complete large square area the placement button.
+                    drop_key = (
+                        f"large_drop_scenario_{slot_index}_"
+                        f"{st.session_state.custom_attempt_id}"
+                    )
 
-                save_progress()
-                st.rerun()
+                    st.markdown(
+                        f"""
+                        <style>
+                        .st-key-{drop_key} {{
+                            position: relative;
+                            height: 250px;
+                            margin-bottom: 12px;
+                        }}
 
-    # --------------------------- CONTROLS --------------------------
+                        .st-key-{drop_key} .scenario-drop-visual {{
+                            position: absolute;
+                            inset: 0;
+                            margin: 0;
+                            pointer-events: none;
+                            z-index: 1;
+                        }}
+
+                        .st-key-{drop_key} div.stButton {{
+                            position: absolute;
+                            inset: 0;
+                            z-index: 5;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button {{
+                            position: absolute;
+                            inset: 0;
+                            width: 100% !important;
+                            height: 100% !important;
+                            min-height: 100% !important;
+                            border: 4px dashed #202124 !important;
+                            border-radius: 16px !important;
+                            background: transparent !important;
+                            box-shadow: none !important;
+                            color: transparent !important;
+                            font-size: 0 !important;
+                            cursor: pointer !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button:hover {{
+                            background: rgba(255, 202, 40, 0.20) !important;
+                            border-color: #202124 !important;
+                            box-shadow: none !important;
+                            color: transparent !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button:disabled {{
+                            background: rgba(189, 189, 189, 0.14) !important;
+                            border-color: #777 !important;
+                            cursor: not-allowed !important;
+                        }}
+                        </style>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    with st.container(key=drop_key):
+                        st.markdown(
+                            """
+                            <div class="scenario-drop-visual">
+                                <div class="scenario-drop-icon"></div>
+                                <div class="scenario-drop-main">PLACE HERE</div>
+                                <div class="scenario-drop-sub">
+                                    Select a picture, then click this box
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                        if st.button(
+                            "Place selected picture here",
+                            key=(
+                                f"place_slot_{slot_index}_"
+                                f"{st.session_state.custom_attempt_id}"
+                            ),
+                            disabled=not bool(
+                                st.session_state.get("selected_picture_card")
+                            ),
+                            use_container_width=True,
+                        ):
+                            move_selected_to(slot_index)
+
+    # -------------------------- CONTROLS -------------------------
     control_back, control_restart, control_done = st.columns(3)
-
     with control_back:
-        if st.button(
-            "BACK",
-            key="puzzle_back_to_map",
-            use_container_width=True,
-        ):
+        if st.button("BACK", key="puzzle_back_to_map", use_container_width=True):
             st.session_state.layout = None
             st.session_state.previous_layout = None
-            st.session_state.previous_sequence = [None] * 8
+            st.session_state.previous_sequence = [None] * 6
             st.session_state.start_time = None
             st.session_state.pending_decision = None
             st.session_state.decision_answers = {}
             st.session_state.custom_attempt_id = ""
             st.session_state.selected_picture_card = None
-            st.session_state.picture_component_revision = None
-            st.session_state.selected_scenario = None
             navigate("map")
 
     with control_restart:
-        if st.button(
-            "RESTART",
-            key="puzzle_restart",
-            use_container_width=True,
-        ):
-            st.session_state.picture_component_revision = None
+        if st.button("RESTART", key="puzzle_restart", use_container_width=True):
             st.session_state.selected_picture_card = None
-            st.session_state.selected_scenario = None
             start_puzzle()
 
     with control_done:
-        if st.button(
-            "DONE",
-            key="puzzle_done",
-            use_container_width=True,
-        ):
+        if st.button("DONE", key="puzzle_done", use_container_width=True):
             if st.session_state.pending_decision is not None:
-                st.warning(
-                    "Confirm the current decision question "
-                    "before pressing DONE."
-                )
-
+                st.warning("Confirm the current popup answer before pressing DONE.")
             elif not slots_complete(st.session_state.layout):
-                st.warning(
-                    "Place one picture in every scenario."
-                )
-
+                st.warning("Place one picture in every slot.")
             elif not decisions_complete(level):
                 unanswered = [
-                    decision
-                    for decision in decisions_for(
-                        level,
-                        difficulty,
-                    )
-                    if decision["id"]
-                    not in st.session_state.decision_answers
+                    d for d in decisions_for(level, difficulty)
+                    if d["id"] not in st.session_state.decision_answers
                 ]
-
                 if unanswered:
-                    st.session_state.pending_decision = (
-                        unanswered[0]["id"]
-                    )
+                    st.session_state.pending_decision = unanswered[0]["id"]
+                    st.warning("Answer all decision questions before pressing DONE.")
                     st.rerun()
-
             else:
                 evaluate_level()
+
 
 
 # -----------------------------------------------------------------------------
