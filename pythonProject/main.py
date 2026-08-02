@@ -2184,11 +2184,10 @@ def render_custom_image_puzzle():
         return image_path_for_card(level_index, difficulty, card_id)
 
     def render_clickable_picture(card_id, location_key, compact=False):
-        """Show a reliable image-only card with a small select control.
+        """Render an image-only comic card that is clickable anywhere.
 
-        Streamlit Cloud does not consistently render local data-URI images as
-        CSS button backgrounds. Using st.image keeps the scenario pictures
-        visible on every rerun while preserving the comic card theme.
+        A transparent native Streamlit button covers the full card, so the
+        player clicks the picture itself instead of a separate black button.
         """
 
         image_path = card_image(card_id)
@@ -2206,7 +2205,8 @@ def render_custom_image_puzzle():
 
         border_colour = "#ffca28" if selected else "#202124"
         background_colour = "#fff0ae" if selected else "#ffffff"
-        image_width = 150 if compact else 175
+        image_width = 142 if compact else 165
+        image_height = 138 if compact else 160
 
         st.markdown(
             f"""
@@ -2217,32 +2217,91 @@ def render_custom_image_puzzle():
                 border: 5px solid {border_colour};
                 border-radius: 16px;
                 box-shadow: 5px 5px 0 #202124;
-                padding: 10px 10px 8px 10px;
+                padding: 9px;
                 margin-bottom: 12px;
                 overflow: visible;
+                transition: transform 0.12s ease;
             }}
+
+            .st-key-{container_key}:hover {{
+                transform: translateY(-2px);
+            }}
+
             .st-key-{container_key} [data-testid="stImage"] {{
                 display: flex;
                 justify-content: center;
                 margin: 0;
+                pointer-events: none;
             }}
+
             .st-key-{container_key} [data-testid="stImage"] img {{
                 border-radius: 10px;
                 object-fit: contain;
-                max-height: {145 if compact else 170}px;
+                max-height: {image_height}px;
+                pointer-events: none;
             }}
-            .st-key-{container_key} div.stButton > button {{
-                min-height: 2.35rem !important;
-                height: 2.35rem !important;
+
+            .st-key-{container_key} .scenario-caption {{
+                text-align: center;
+                font-weight: 800;
+                font-size: {'0.78rem' if compact else '0.88rem'};
+                line-height: 1.18;
+                min-height: 2.3em;
+                margin: 5px 2px 3px;
+                pointer-events: none;
+            }}
+
+            /* Cover the complete card with a transparent native button. */
+            .st-key-{container_key} div.stButton {{
+                position: absolute;
+                inset: 0;
+                z-index: 20;
+                margin: 0 !important;
                 padding: 0 !important;
-                margin-top: 6px !important;
-                background: {'#ffca28' if selected else '#20a43a'} !important;
-                color: {'#202124' if selected else '#ffffff'} !important;
-                border: 4px solid #202124 !important;
-                border-radius: 9px !important;
-                box-shadow: 4px 4px 0 #202124 !important;
-                font-size: 1.15rem !important;
-                line-height: 1 !important;
+            }}
+
+            .st-key-{container_key} div.stButton > button {{
+                position: absolute;
+                inset: 0;
+                width: 100% !important;
+                height: 100% !important;
+                min-height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 12px !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                color: transparent !important;
+                font-size: 0 !important;
+                cursor: pointer !important;
+            }}
+
+            .st-key-{container_key} div.stButton > button:hover,
+            .st-key-{container_key} div.stButton > button:focus {{
+                background: rgba(255, 202, 40, 0.10) !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                color: transparent !important;
+            }}
+
+            .st-key-{container_key} .selected-badge {{
+                position: absolute;
+                right: -8px;
+                top: -8px;
+                z-index: 30;
+                width: 34px;
+                height: 34px;
+                display: {'flex' if selected else 'none'};
+                align-items: center;
+                justify-content: center;
+                border: 4px solid #202124;
+                border-radius: 50%;
+                background: #ffca28;
+                color: #202124;
+                font-weight: 900;
+                box-shadow: 3px 3px 0 #202124;
+                pointer-events: none;
             }}
             </style>
             """,
@@ -2250,24 +2309,24 @@ def render_custom_image_puzzle():
         )
 
         with st.container(key=container_key):
+            st.markdown(
+                '<div class="selected-badge">✓</div>',
+                unsafe_allow_html=True,
+            )
             st.image(image_path, width=image_width)
 
             caption = card_description_for(
                 level_index, level, difficulty, card_id
             )
             st.markdown(
-                f"<div style='text-align:center;font-weight:800;"
-                f"font-size:{'0.82rem' if compact else '0.9rem'};"
-                f"line-height:1.2;min-height:2.4em;margin:5px 2px 4px;'>"
-                f"{caption}</div>",
+                f'<div class="scenario-caption">{caption}</div>',
                 unsafe_allow_html=True,
             )
 
-            button_label = "✓ SELECTED" if selected else "✓"
             if st.button(
-                button_label,
+                "Select this picture",
                 key=button_key,
-                help="Select this picture",
+                help="Click to select this picture",
                 use_container_width=True,
             ):
                 current = st.session_state.get("selected_picture_card")
@@ -2356,7 +2415,7 @@ def render_custom_image_puzzle():
     # ---------------- HORIZONTAL STORY TRAY ----------------
     st.markdown('<div class="comic-panel">', unsafe_allow_html=True)
     st.markdown("### STORY TRAY")
-    st.caption("Press the ✓ button below a picture, then press PLACE HERE in the correct scenario.")
+    st.caption("Click a picture to select it, then click the correct scenario box.")
 
     tray_ids = list(st.session_state.layout[0].get("items", []))
 
@@ -2378,9 +2437,64 @@ def render_custom_image_puzzle():
         st.success("Picture selected. Choose a scenario below.")
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ---------------- SMALLER STORY SLOTS ----------------
+    # ---------------- STORY SEQUENCE ----------------
     st.markdown("### STORY SEQUENCE")
     slot_total = len(st.session_state.layout) - 1
+
+    st.markdown(
+        """
+        <style>
+        .scenario-label-small {
+            display: inline-block;
+            background: #fffaf0;
+            border: 4px solid #202124;
+            border-radius: 11px;
+            box-shadow: 4px 4px 0 #202124;
+            padding: 5px 11px;
+            margin: 3px 0 10px 1px;
+            font-family: "Bangers", cursive;
+            font-size: 1.08rem;
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+
+        .scenario-drop-visual {
+            height: 250px;
+            border: 4px dashed #202124;
+            border-radius: 16px;
+            background: rgba(255, 250, 240, 0.82);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .scenario-drop-icon {
+            width: 64px;
+            height: 64px;
+            border: 4px dashed #a7a7a7;
+            border-radius: 14px;
+            margin-bottom: 12px;
+        }
+
+        .scenario-drop-main {
+            font-size: 1.05rem;
+            letter-spacing: 0.5px;
+        }
+
+        .scenario-drop-sub {
+            margin-top: 7px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            opacity: 0.7;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     for row_start in range(1, slot_total + 1, 3):
         slot_columns = st.columns(3, gap="medium")
@@ -2392,8 +2506,8 @@ def render_custom_image_puzzle():
 
             with slot_columns[offset]:
                 st.markdown(
-                    f"<div class='comic-panel' style='padding:12px;margin-bottom:12px;'>"
-                    f"<h3 style='margin:0 0 7px 0;'>SCENARIO {slot_index}</h3>",
+                    f"<div class='scenario-label-small'>"
+                    f"SCENARIO {slot_index}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -2409,29 +2523,105 @@ def render_custom_image_puzzle():
 
                     if st.button(
                         "RETURN TO TRAY",
-                        key=f"return_slot_{slot_index}_{st.session_state.custom_attempt_id}",
+                        key=(
+                            f"return_slot_{slot_index}_"
+                            f"{st.session_state.custom_attempt_id}"
+                        ),
                         use_container_width=True,
                     ):
                         st.session_state.selected_picture_card = card_id
                         move_selected_to(0)
+
                 else:
+                    # Make the complete large square area the placement button.
+                    drop_key = (
+                        f"large_drop_scenario_{slot_index}_"
+                        f"{st.session_state.custom_attempt_id}"
+                    )
+
                     st.markdown(
-                        "<div style='height:115px;display:flex;align-items:center;"
-                        "justify-content:center;border:4px dashed #202124;"
-                        "border-radius:14px;font-weight:900;font-size:0.9rem;'>"
-                        "EMPTY SLOT</div>",
+                        f"""
+                        <style>
+                        .st-key-{drop_key} {{
+                            position: relative;
+                            height: 250px;
+                            margin-bottom: 12px;
+                        }}
+
+                        .st-key-{drop_key} .scenario-drop-visual {{
+                            position: absolute;
+                            inset: 0;
+                            margin: 0;
+                            pointer-events: none;
+                            z-index: 1;
+                        }}
+
+                        .st-key-{drop_key} div.stButton {{
+                            position: absolute;
+                            inset: 0;
+                            z-index: 5;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button {{
+                            position: absolute;
+                            inset: 0;
+                            width: 100% !important;
+                            height: 100% !important;
+                            min-height: 100% !important;
+                            border: 4px dashed #202124 !important;
+                            border-radius: 16px !important;
+                            background: transparent !important;
+                            box-shadow: none !important;
+                            color: transparent !important;
+                            font-size: 0 !important;
+                            cursor: pointer !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button:hover {{
+                            background: rgba(255, 202, 40, 0.20) !important;
+                            border-color: #202124 !important;
+                            box-shadow: none !important;
+                            color: transparent !important;
+                        }}
+
+                        .st-key-{drop_key} div.stButton > button:disabled {{
+                            background: rgba(189, 189, 189, 0.14) !important;
+                            border-color: #777 !important;
+                            cursor: not-allowed !important;
+                        }}
+                        </style>
+                        """,
                         unsafe_allow_html=True,
                     )
 
-                if st.button(
-                    "PLACE HERE",
-                    key=f"place_slot_{slot_index}_{st.session_state.custom_attempt_id}",
-                    use_container_width=True,
-                    disabled=not bool(st.session_state.get("selected_picture_card")),
-                ):
-                    move_selected_to(slot_index)
+                    with st.container(key=drop_key):
+                        st.markdown(
+                            """
+                            <div class="scenario-drop-visual">
+                                <div class="scenario-drop-icon"></div>
+                                <div class="scenario-drop-main">PLACE HERE</div>
+                                <div class="scenario-drop-sub">
+                                    Select a picture, then click this box
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
-                st.markdown('</div>', unsafe_allow_html=True)
+                        if st.button(
+                            "Place selected picture here",
+                            key=(
+                                f"place_slot_{slot_index}_"
+                                f"{st.session_state.custom_attempt_id}"
+                            ),
+                            disabled=not bool(
+                                st.session_state.get("selected_picture_card")
+                            ),
+                            use_container_width=True,
+                        ):
+                            move_selected_to(slot_index)
 
     # -------------------------- CONTROLS -------------------------
     control_back, control_restart, control_done = st.columns(3)
