@@ -182,13 +182,16 @@ LEVELS = [
         },
         "decisions": [
             {
-                # L1_E_2: time to pinch the nose
-                "id": "easy_pinching_time",
+                # L1_E_2: where to pinch the nose
+                "id": "easy_pinching_place",
                 "difficulty": "Easy",
                 "trigger": "L1-2",
-                "question": "How long do you pinch the nose?",
-                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
-                "correct": "10-15 mins",
+                "question": "Where do you pinch the nose?",
+                "options": [
+                    "Below bridge of the nose",
+                    "On the hard bone of the nose",
+                ],
+                "correct": "Below bridge of the nose",
             },
             {
                 "id": "medium_compress",
@@ -199,16 +202,13 @@ LEVELS = [
                 "correct": "Cool",
             },
             {
-                # L1_H_3: where to pinch the nose
-                "id": "hard_pinching_place",
+                # L1_H_3: time to pinch the nose
+                "id": "hard_pinching_time",
                 "difficulty": "Hard",
                 "trigger": "L1-3",
-                "question": "Where do you pinch the nose?",
-                "options": [
-                    "Below bridge of the nose",
-                    "On the hard bone of the nose",
-                ],
-                "correct": "Below bridge of the nose",
+                "question": "How long do you pinch the nose?",
+                "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
+                "correct": "10-15 mins",
             },
             {
                 "id": "hard_compress_time",
