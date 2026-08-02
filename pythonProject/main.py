@@ -227,7 +227,7 @@ LEVELS = [
             {
                 "id": "medium_compress",
                 "difficulty": "Medium",
-                "trigger": "L1_M_1",
+                "trigger": "L1_M_5",
                 "question": "What compress do you use?",
                 "options": ["Warm", "Hot", "Cold", "Cool"],
                 "correct": "Cool",
