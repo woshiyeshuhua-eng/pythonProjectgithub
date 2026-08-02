@@ -166,30 +166,53 @@ LEVELS = [
         "title": "Nosebleed",
         "setting": "Classroom",
         "story": "A student suddenly develops a nosebleed during class.",
-        "correct_cards": ["L1-1", "L1-2", "L1-3", "L1-4", "L1-5", "L1-6", "L1-7", "L1-8", "L1-9"],
-        "wrong_cards": ["L1-W1", "L1-W2"],
+        "correct_cards": ["L1_E_1", "L1_E_2", "L1_E_3", "L1_E_4", "L1_M_1", "L1_M_2", "L1_M_3", "L1_M_4", "L1_M_5", "L1_M_6", "L1_H_1", "L1_H_2", "L1_H_3", "L1_H_4", "L1_H_5", "L1_H_6", "L1_H_7", "L1_H_8"],
+        "wrong_cards": ["L1_H_W1", "L1_H_W2"],
         "cards": {
-            # Easy mode cards (first 4)
-            "L1-1": "Notify a teacher",
-            "L1-2": "Pinch the bridge of the nose",
-            "L1-3": "Continue pinching",
-            "L1-4": "Check for any bleeding",
-            # Medium mode cards (6 total)
-            "L1-5": "Student realises",
-            "L1-6": "Retrieve ice pack",
-            # Hard mode cards (8 total)
-            "L1-7": "Friend seeks help",
-            "L1-8": "Squeeze ice pack",
-            "L1-9": "Apply ice pack on bridge of the nose",
-            # Wrong cards
-            "L1-W1": "Open the ice pack",
-            "L1-W2": "Tilt head back",
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
+            "L1_E_1": "Notify a teacher",
+            "L1_E_2": "Pinch the bridge of the nose",
+            "L1_E_3": "Continue pinching",
+            "L1_E_4": "Check for any bleeding",
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
+            "L1_M_1": "Student realises",
+            "L1_M_2": "Notify a teacher",
+            "L1_M_3": "Pinch the bridge of the nose",
+            "L1_M_4": "Retrieve ice pack",
+            "L1_M_5": "Apply ice pack",
+            "L1_M_6": "Check for any bleeding",
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
+            "L1_H_1": "Student realises",
+            "L1_H_2": "Friend seeks help",
+            "L1_H_3": "Notify the teacher",
+            "L1_H_4": "Pinch bridge of the nose",
+            "L1_H_5": "Retrieve ice pack",
+            "L1_H_6": "Squeeze ice pack",
+            "L1_H_7": "Apply ice pack on bridge of the nose",
+            "L1_H_8": "Check for any bleeding",
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
+            "L1_H_W1": "Open the ice pack",
+            "L1_H_W2": "Tilt head back",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
                 "id": "easy_pinching_place",
                 "difficulty": "Easy",
-                "trigger": "L1-2",
+                "trigger": "L1_E_2",
                 "question": "Where do you pinch the nose?",
                 "options": [
                     "Below bridge of the nose",
@@ -197,18 +220,26 @@ LEVELS = [
                 ],
                 "correct": "Below bridge of the nose",
             },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
             {
                 "id": "medium_compress",
                 "difficulty": "Medium",
-                "trigger": "L1-5",
+                "trigger": "L1_M_1",
                 "question": "What compress do you use?",
                 "options": ["Warm", "Hot", "Cold", "Cool"],
                 "correct": "Cool",
             },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
             {
                 "id": "hard_ask_teacher",
                 "difficulty": "Hard",
-                "trigger": "L1-3",
+                "trigger": "L1_H_3",
                 "question": "What do you ask the teacher to bring?",
                 "options": ["AED", "First Aid Bag", "Nothing"],
                 "correct": "First Aid Bag",
@@ -216,7 +247,7 @@ LEVELS = [
             {
                 "id": "hard_pinching_time",
                 "difficulty": "Hard",
-                "trigger": "L1-2",
+                "trigger": "L1_H_4",
                 "question": "How long do you pinch the nose?",
                 "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
                 "correct": "10-15 mins",
@@ -224,7 +255,7 @@ LEVELS = [
             {
                 "id": "hard_compress_time",
                 "difficulty": "Hard",
-                "trigger": "L1-7",
+                "trigger": "L1_H_7",
                 "question": "How long do you put the cool compress?",
                 "options": ["5-10 mins", "10-15 mins", "20-30 mins"],
                 "correct": "10-15 mins",
@@ -239,39 +270,111 @@ LEVELS = [
         "title": "Student Falls",
         "setting": "School Corridor",
         "story": "A student trips in the school corridor and falls.",
-        "correct_cards": ["L3-1", "L3-2", "L3-3", "L3-4", "L3-5", "L3-6"],
-        "wrong_cards": ["L3-W1", "L3-W2", "L3-W3"],
+        "correct_cards": ["L2_E_1", "L2_E_2", "L2_E_3", "L2_E_4", "L2_M_1", "L2_M_2", "L2_M_3", "L2_M_4", "L2_M_5", "L2_M_6", "L2_H_1", "L2_H_2", "L2_H_3", "L2_H_4", "L2_H_5", "L2_H_6", "L2_H_7", "L2_H_8"],
+        "wrong_cards": ["L2_H_W1", "L2_H_W2"],
         "cards": {
-            "L3-1": "Student trips and falls in the corridor",
-            "L3-2": "Helper checks that the area is safe",
-            "L3-3": "Helper checks the student before moving them",
-            "L3-4": "Teacher is informed",
-            "L3-5": "The wound is cleaned with clean materials",
-            "L3-6": "A clean dressing is applied",
-            "L3-W1": "Helper immediately pulls the student up",
-            "L3-W2": "The wound is cleaned with a dirty tissue",
-            "L3-W3": "The injured student is left alone",
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
+            "L2_E_1": "Student trips and falls",
+            "L2_E_2": "Check the area is safe",
+            "L2_E_3": "Check the student before moving",
+            "L2_E_4": "Inform the teacher",
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
+            "L2_M_1": "Student trips and falls",
+            "L2_M_2": "Check the area is safe",
+            "L2_M_3": "Check the student before moving",
+            "L2_M_4": "Inform the teacher",
+            "L2_M_5": "Clean the wound with clean materials",
+            "L2_M_6": "Apply a clean dressing",
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
+            "L2_H_1": "Student trips and falls",
+            "L2_H_2": "Check the area is safe",
+            "L2_H_3": "Check the student before moving",
+            "L2_H_4": "Inform the teacher",
+            "L2_H_5": "Clean the wound with clean materials",
+            "L2_H_6": "Apply a clean dressing",
+            "L2_H_7": "Monitor the student",
+            "L2_H_8": "Provide reassurance",
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
+            "L2_H_W1": "Pull the student up immediately",
+            "L2_H_W2": "Leave the student alone",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "fall_move",
-                "trigger": "L3-3",
-                "question": "Should the student be pulled up immediately?",
+                "id": "easy_fall_move",
+                "difficulty": "Easy",
+                "trigger": "L2_E_3",
+                "question": "Should the student be moved immediately?",
                 "options": [
                     "No, check for injury first",
                     "Yes, pull the student up",
                 ],
                 "correct": "No, check for injury first",
             },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "fall_clean",
-                "trigger": "L3-5",
+                "id": "medium_fall_clean",
+                "difficulty": "Medium",
+                "trigger": "L2_M_5",
                 "question": "What should be used to clean the wound?",
                 "options": [
                     "Clean water and clean materials",
                     "Dirty tissue",
                 ],
                 "correct": "Clean water and clean materials",
+            },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
+            {
+                "id": "hard_fall_assess",
+                "difficulty": "Hard",
+                "trigger": "L2_H_3",
+                "question": "What should you check before moving the student?",
+                "options": [
+                    "Consciousness and movement",
+                    "Ignore and move quickly",
+                ],
+                "correct": "Consciousness and movement",
+            },
+            {
+                "id": "hard_fall_clean_time",
+                "difficulty": "Hard",
+                "trigger": "L2_H_5",
+                "question": "How should the wound be cleaned?",
+                "options": [
+                    "With clean water and gentle pressure",
+                    "With a dirty tissue",
+                ],
+                "correct": "With clean water and gentle pressure",
+            },
+            {
+                "id": "hard_fall_cover",
+                "difficulty": "Hard",
+                "trigger": "L2_H_6",
+                "question": "What should be used to cover the wound?",
+                "options": [
+                    "A clean dressing",
+                    "A dirty cloth",
+                ],
+                "correct": "A clean dressing",
             },
         ],
         "hint": (
@@ -283,36 +386,108 @@ LEVELS = [
         "title": "Fainting",
         "setting": "School Canteen",
         "story": "A student feels dizzy and suddenly faints in the canteen.",
-        "correct_cards": ["L4-1", "L4-2", "L4-3", "L4-4", "L4-5", "L4-6"],
-        "wrong_cards": ["L4-W1", "L4-W2", "L4-W3"],
+        "correct_cards": ["L3_E_1", "L3_E_2", "L3_E_3", "L3_E_4", "L3_M_1", "L3_M_2", "L3_M_3", "L3_M_4", "L3_M_5", "L3_M_6", "L3_H_1", "L3_H_2", "L3_H_3", "L3_H_4", "L3_H_5", "L3_H_6", "L3_H_7", "L3_H_8"],
+        "wrong_cards": ["L3_H_W1", "L3_H_W2"],
         "cards": {
-            "L4-1": "Student feels dizzy",
-            "L4-2": "Student faints",
-            "L4-3": "Helper checks responsiveness and breathing",
-            "L4-4": "No food or drink is given while unconscious",
-            "L4-5": "Teacher and school staff are called",
-            "L4-6": "Helper stays and monitors the student",
-            "L4-W1": "Food is given while the student is unconscious",
-            "L4-W2": "The student is left alone",
-            "L4-W3": "The student is forced to stand immediately",
+            # ============================================================
+            # EASY MODE CARDS (first 4) - 4 cards total
+            # ============================================================
+            "L3_E_1": "Student feels dizzy",
+            "L3_E_2": "Student faints",
+            "L3_E_3": "Check responsiveness",
+            "L3_E_4": "Call for help",
+            
+            # ============================================================
+            # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
+            # ============================================================
+            "L3_M_1": "Student feels dizzy",
+            "L3_M_2": "Student faints",
+            "L3_M_3": "Check responsiveness",
+            "L3_M_4": "Call for help",
+            "L3_M_5": "Do not give food or drink",
+            "L3_M_6": "Stay and monitor the student",
+            
+            # ============================================================
+            # HARD MODE CARDS (8 total) - Medium cards + 3 more
+            # ============================================================
+            "L3_H_1": "Student feels dizzy",
+            "L3_H_2": "Student faints",
+            "L3_H_3": "Check responsiveness",
+            "L3_H_4": "Call for help",
+            "L3_H_5": "Do not give food or drink",
+            "L3_H_6": "Stay and monitor the student",
+            "L3_H_7": "Check breathing",
+            "L3_H_8": "Keep the student safe",
+            
+            # ============================================================
+            # WRONG CARDS (2 total) - Only appear in Hard mode
+            # ============================================================
+            "L3_H_W1": "Give food or drink while unconscious",
+            "L3_H_W2": "Leave the student alone",
         },
         "decisions": [
+            # ============================================================
+            # EASY MODE DECISIONS (1 decision)
+            # ============================================================
             {
-                "id": "faint_food",
-                "trigger": "L4-4",
+                "id": "easy_faint_response",
+                "difficulty": "Easy",
+                "trigger": "L3_E_3",
+                "question": "What should you check first?",
+                "options": [
+                    "Responsiveness",
+                    "Check for injuries",
+                ],
+                "correct": "Responsiveness",
+            },
+            
+            # ============================================================
+            # MEDIUM MODE DECISIONS (1 decision)
+            # ============================================================
+            {
+                "id": "medium_faint_food",
+                "difficulty": "Medium",
+                "trigger": "L3_M_5",
                 "question": "Should food or drink be given while unconscious?",
                 "options": ["No", "Yes"],
                 "correct": "No",
             },
+            
+            # ============================================================
+            # HARD MODE DECISIONS (3 decisions)
+            # ============================================================
             {
-                "id": "faint_stay",
-                "trigger": "L4-6",
-                "question": "What should the helper do?",
+                "id": "hard_faint_breathing",
+                "difficulty": "Hard",
+                "trigger": "L3_H_7",
+                "question": "What should you check after responsiveness?",
+                "options": [
+                    "Breathing",
+                    "Blood pressure",
+                ],
+                "correct": "Breathing",
+            },
+            {
+                "id": "hard_faint_position",
+                "difficulty": "Hard",
+                "trigger": "L3_H_6",
+                "question": "What should you do if the student is unconscious?",
                 "options": [
                     "Stay and monitor",
-                    "Leave the student alone",
+                    "Leave to get help",
                 ],
                 "correct": "Stay and monitor",
+            },
+            {
+                "id": "hard_faint_safe",
+                "difficulty": "Hard",
+                "trigger": "L3_H_8",
+                "question": "How should you keep the student safe?",
+                "options": [
+                    "Stay with them and monitor",
+                    "Leave them alone",
+                ],
+                "correct": "Stay with them and monitor",
             },
         ],
         "hint": (
