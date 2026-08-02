@@ -90,7 +90,7 @@ def clear_runtime_game_state():
         "previous_sequence", "moves", "start_time", "decision_answers",
         "pending_decision", "result", "show_hint", "sort_key",
         "slot_warning", "browser_progress_loaded", "attempt_restored",
-        "custom_attempt_id", "selected_picture_card",
+        "custom_attempt_id", "selected_picture_card", "selected_scenario",
         "pending_browser_action", "pending_browser_payload",
         "browser_action_revision", "browser_load_attempts",
         "browser_storage_ready", "open_home_after_login",
@@ -1008,6 +1008,7 @@ def initialise_state(saved_progress):
         "attempt_restored": False,
         "custom_attempt_id": "",
         "picture_component_revision": None,
+        "selected_scenario": None,
         "browser_load_attempts": 0,
         "browser_storage_ready": True,
         "open_home_after_login": False,
@@ -1491,6 +1492,7 @@ def start_puzzle():
     st.session_state.show_hint = False
     st.session_state.slot_warning = False
     st.session_state.selected_picture_card = None
+    st.session_state.selected_scenario = None
     st.session_state.sort_key += 1
     st.session_state.custom_attempt_id = (
         f"{level_index}-{difficulty}-{time.time_ns()}"
@@ -2142,38 +2144,11 @@ body {
 
 .card:hover {
     transform: translateY(-3px);
-}
-
-.card.selected {
-    background: #fff4b8;
-    border-color: var(--yellow);
-    outline: 4px solid var(--dark);
+    background: #fffdf3;
 }
 
 .card.dragging {
     opacity: 0.55;
-}
-
-.selected-badge {
-    position: absolute;
-    right: -10px;
-    top: -10px;
-    display: none;
-    width: 38px;
-    height: 38px;
-    align-items: center;
-    justify-content: center;
-    border: 4px solid var(--dark);
-    border-radius: 50%;
-    background: var(--yellow);
-    box-shadow: 3px 3px 0 var(--dark);
-    font-size: 21px;
-    font-weight: 900;
-    pointer-events: none;
-}
-
-.card.selected .selected-badge {
-    display: flex;
 }
 
 .card img {
@@ -2221,6 +2196,10 @@ body {
     line-height: 1;
 }
 
+.scenario-wrap.selected .scenario-label {
+    background: var(--yellow);
+}
+
 .scenario-box {
     position: relative;
     display: flex;
@@ -2233,13 +2212,33 @@ body {
     border-radius: 18px;
     background: rgba(255, 250, 240, 0.9);
     cursor: pointer;
-    transition: background 120ms ease, transform 120ms ease;
+    transition: background 120ms ease, transform 120ms ease, outline 120ms ease;
 }
 
 .scenario-box:hover,
 .scenario-box.drag-over {
     background: #fff4b8;
     transform: translateY(-2px);
+}
+
+.scenario-wrap.selected .scenario-box {
+    background: #fff4b8;
+    outline: 6px solid var(--yellow);
+    outline-offset: 2px;
+}
+
+.scenario-wrap.selected .scenario-box::after {
+    content: "SELECTED";
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    padding: 5px 9px;
+    border: 3px solid var(--dark);
+    border-radius: 9px;
+    background: var(--yellow);
+    box-shadow: 3px 3px 0 var(--dark);
+    font-size: 12px;
+    font-weight: 900;
 }
 
 .scenario-box .card {
@@ -2314,7 +2313,7 @@ body {
 <script>
 let args = {};
 let layout = [];
-let selectedCard = null;
+let selectedScenario = null;
 let draggedCard = null;
 
 function post(type, extra) {
@@ -2351,87 +2350,31 @@ function findCardContainer(cardId) {
     );
 }
 
-function emitSelection() {
+function emitScenarioSelection() {
     send({
         layout,
-        selected_card: selectedCard,
-        action: "select",
+        selected_scenario: selectedScenario,
+        action: "select_scenario",
         revision: Date.now()
     });
 }
 
-function createCard(cardId) {
-    const data = cardInfo(cardId);
-    const card = document.createElement("div");
-
-    card.className = "card";
-    card.dataset.cardId = cardId;
-    card.draggable = true;
-
-    if (selectedCard === cardId) {
-        card.classList.add("selected");
-    }
-
-    const badge = document.createElement("div");
-    badge.className = "selected-badge";
-    badge.textContent = "✓";
-    card.appendChild(badge);
-
-    if (data.image) {
-        const image = document.createElement("img");
-        image.src = data.image;
-        image.alt = data.label;
-        image.draggable = false;
-        card.appendChild(image);
-    }
-
-    const caption = document.createElement("div");
-    caption.className = "card-caption";
-    caption.textContent = data.label;
-    card.appendChild(caption);
-
-    card.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        selectedCard = selectedCard === cardId ? null : cardId;
-        render();
-        emitSelection();
-    });
-
-    card.addEventListener("dragstart", event => {
-        draggedCard = cardId;
-        selectedCard = cardId;
-        card.classList.add("dragging");
-        event.dataTransfer.setData("text/plain", cardId);
-        event.dataTransfer.effectAllowed = "move";
-        render();
-        emitSelection();
-    });
-
-    card.addEventListener("dragend", () => {
-        draggedCard = null;
-        document.querySelectorAll(".drag-over")
-            .forEach(el => el.classList.remove("drag-over"));
-    });
-
-    return card;
-}
-
 function moveCardTo(cardId, targetIndex) {
-    if (!cardId) return;
+    if (!cardId || !targetIndex || targetIndex < 1) {
+        return;
+    }
 
     const sourceIndex = findCardContainer(cardId);
 
     if (sourceIndex < 0 || sourceIndex === targetIndex) {
-        selectedCard = null;
+        selectedScenario = null;
         render();
-        emitSelection();
+        emitScenarioSelection();
         return;
     }
 
+    // A scenario can contain only one picture.
     if (
-        targetIndex > 0 &&
         Array.isArray(layout[targetIndex].items) &&
         layout[targetIndex].items.length > 0
     ) {
@@ -2453,7 +2396,7 @@ function moveCardTo(cardId, targetIndex) {
 
     layout[targetIndex].items.push(cardId);
 
-    selectedCard = null;
+    selectedScenario = null;
     draggedCard = null;
 
     render();
@@ -2462,10 +2405,56 @@ function moveCardTo(cardId, targetIndex) {
         layout,
         moved_card: cardId,
         target_index: targetIndex,
-        selected_card: null,
+        selected_scenario: null,
         action: "move",
         revision: Date.now()
     });
+}
+
+function createCard(cardId) {
+    const data = cardInfo(cardId);
+    const card = document.createElement("div");
+
+    card.className = "card";
+    card.dataset.cardId = cardId;
+    card.draggable = true;
+
+    if (data.image) {
+        const image = document.createElement("img");
+        image.src = data.image;
+        image.alt = data.label;
+        image.draggable = false;
+        card.appendChild(image);
+    }
+
+    const caption = document.createElement("div");
+    caption.className = "card-caption";
+    caption.textContent = data.label;
+    card.appendChild(caption);
+
+    card.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (selectedScenario !== null) {
+            moveCardTo(cardId, selectedScenario);
+        }
+    });
+
+    card.addEventListener("dragstart", event => {
+        draggedCard = cardId;
+        card.classList.add("dragging");
+        event.dataTransfer.setData("text/plain", cardId);
+        event.dataTransfer.effectAllowed = "move";
+    });
+
+    card.addEventListener("dragend", () => {
+        draggedCard = null;
+        document.querySelectorAll(".drag-over")
+            .forEach(el => el.classList.remove("drag-over"));
+    });
+
+    return card;
 }
 
 function makeDropTarget(element, targetIndex) {
@@ -2486,20 +2475,9 @@ function makeDropTarget(element, targetIndex) {
 
         const cardId =
             event.dataTransfer.getData("text/plain") ||
-            draggedCard ||
-            selectedCard;
+            draggedCard;
 
         moveCardTo(cardId, targetIndex);
-    });
-
-    element.addEventListener("click", event => {
-        if (event.target.closest(".card")) {
-            return;
-        }
-
-        if (selectedCard) {
-            moveCardTo(selectedCard, targetIndex);
-        }
     });
 }
 
@@ -2515,7 +2493,7 @@ function render() {
     const help = document.createElement("div");
     help.className = "help";
     help.textContent =
-        "Click a picture to select it, then click a scenario box. You may also drag it.";
+        "Select a scenario first, then click the picture you want to place there.";
     root.appendChild(help);
 
     const tray = document.createElement("div");
@@ -2534,7 +2512,6 @@ function render() {
         });
     }
 
-    makeDropTarget(tray, 0);
     root.appendChild(tray);
 
     const sequenceTitle = document.createElement("div");
@@ -2547,6 +2524,11 @@ function render() {
 
     for (let index = 1; index < layout.length; index += 1) {
         const wrap = document.createElement("div");
+        wrap.className = "scenario-wrap";
+
+        if (selectedScenario === index) {
+            wrap.classList.add("selected");
+        }
 
         const label = document.createElement("div");
         label.className = "scenario-label";
@@ -2570,20 +2552,38 @@ function render() {
 
             const title = document.createElement("div");
             title.className = "empty-title";
-            title.textContent = "PLACE HERE";
+            title.textContent = "SELECT SCENARIO";
             empty.appendChild(title);
 
             const sub = document.createElement("div");
             sub.className = "empty-help";
-            sub.textContent = selectedCard
-                ? "Click to place selected picture"
-                : "Select a picture first";
+            sub.textContent = (
+                selectedScenario === index
+                ? "Now click a picture in the Story Tray"
+                : "Click this box first"
+            );
             empty.appendChild(sub);
 
             box.appendChild(empty);
         }
 
+        box.addEventListener("click", event => {
+            if (event.target.closest(".card")) {
+                return;
+            }
+
+            selectedScenario = (
+                selectedScenario === index
+                ? null
+                : index
+            );
+
+            render();
+            emitScenarioSelection();
+        });
+
         makeDropTarget(box, index);
+
         wrap.appendChild(box);
         sequence.appendChild(wrap);
     }
@@ -2596,7 +2596,13 @@ window.addEventListener("message", event => {
     if (event.data?.type === "streamlit:render") {
         args = event.data.args || {};
         layout = JSON.parse(JSON.stringify(args.layout || []));
-        selectedCard = args.selected_card || null;
+        selectedScenario = (
+            args.selected_scenario === null ||
+            args.selected_scenario === undefined
+        )
+            ? null
+            : Number(args.selected_scenario);
+
         render();
     }
 });
@@ -2737,7 +2743,7 @@ def render_custom_image_puzzle():
     component_value = picture_sorter(
         layout=st.session_state.layout,
         cards=cards,
-        selected_card=st.session_state.get("selected_picture_card"),
+        selected_scenario=st.session_state.get("selected_scenario"),
         key=(
             "rewritten_story_component_"
             f"{st.session_state.custom_attempt_id}"
@@ -2756,12 +2762,14 @@ def render_custom_image_puzzle():
             st.session_state.picture_component_revision = revision
 
             action = component_value.get("action")
-            selected_card = component_value.get("selected_card")
 
-            if action == "select":
-                st.session_state.selected_picture_card = (
-                    str(selected_card)
-                    if selected_card
+            if action == "select_scenario":
+                selected_scenario = component_value.get(
+                    "selected_scenario"
+                )
+                st.session_state.selected_scenario = (
+                    int(selected_scenario)
+                    if selected_scenario not in (None, "")
                     else None
                 )
                 st.rerun()
@@ -2804,6 +2812,7 @@ def render_custom_image_puzzle():
                 )
                 st.session_state.moves += 1
                 st.session_state.selected_picture_card = None
+                st.session_state.selected_scenario = None
 
                 if (
                     moved_card
@@ -2833,6 +2842,7 @@ def render_custom_image_puzzle():
             st.session_state.custom_attempt_id = ""
             st.session_state.selected_picture_card = None
             st.session_state.picture_component_revision = None
+            st.session_state.selected_scenario = None
             navigate("map")
 
     with control_restart:
@@ -2843,6 +2853,7 @@ def render_custom_image_puzzle():
         ):
             st.session_state.picture_component_revision = None
             st.session_state.selected_picture_card = None
+            st.session_state.selected_scenario = None
             start_puzzle()
 
     with control_done:
