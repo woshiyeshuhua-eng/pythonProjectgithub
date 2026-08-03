@@ -200,7 +200,7 @@ LEVELS = [
             "L1_M_2": "Notify a teacher",
             "L1_M_3": "Pinch the bridge of the nose",
             "L1_M_4": "Retrieve ice pack",
-            "L1_M_5": "Apply ice pack",
+            "L1_M_5": "Apply ice pack to bridge of the nose",
             "L1_M_6": "Check for any bleeding",
             
             # ============================================================
