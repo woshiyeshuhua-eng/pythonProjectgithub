@@ -7,6 +7,8 @@ import time
 import urllib.parse
 from pathlib import Path
 import os
+import hashlib
+import threading
 
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
@@ -33,6 +35,8 @@ PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
 PUZZLE_NAV_STORAGE_KEY = "first_aid_heroes_pending_navigation"
 NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
+SERVER_SAVE_FILE = BASE_DIR / "first_aid_heroes_ip_progress.json"
+SERVER_SAVE_LOCK = threading.Lock()
 
 
 
@@ -46,24 +50,45 @@ def normalise_player_id(value):
     return value[:40]
 
 
-def current_player_id():
-    """Return the active player ID for this browser session."""
+def get_client_ip():
+    """Return the visitor IP passed to Streamlit by the hosting proxy."""
 
-    return normalise_player_id(
-        st.session_state.get("player_id")
-        or st.query_params.get(PLAYER_QUERY_KEY, "")
+    headers = getattr(st.context, "headers", {}) or {}
+    forwarded = (
+        headers.get("X-Forwarded-For")
+        or headers.get("x-forwarded-for")
+        or headers.get("X-Real-IP")
+        or headers.get("x-real-ip")
+        or ""
     )
+
+    # X-Forwarded-For may contain several addresses. The first is the client.
+    ip_address = str(forwarded).split(",", 1)[0].strip()
+
+    # Local Streamlit/PyCharm does not always provide forwarding headers.
+    if not ip_address:
+        ip_address = "local-device"
+
+    return ip_address
+
+
+def ip_player_id():
+    """Create a privacy-safe stable player key from the visitor IP."""
+
+    digest = hashlib.sha256(get_client_ip().encode("utf-8")).hexdigest()[:24]
+    return f"ip-{digest}"
+
+
+def current_player_id():
+    """Use the visitor IP as the automatic player profile ID."""
+
+    return ip_player_id()
 
 
 def current_player_name():
     """Return the display name shown in the game UI."""
 
-    return str(
-        st.session_state.get("player_name")
-        or st.query_params.get("player_name", "")
-        or current_player_id()
-        or "Player"
-    )
+    return str(st.session_state.get("player_name") or "Player")
 
 
 def browser_storage_key():
@@ -718,6 +743,84 @@ def sanitise_progress(raw_value):
         return empty_progress()
 
 
+def read_all_server_progress():
+    """Read all IP profiles from the local server save file."""
+
+    with SERVER_SAVE_LOCK:
+        if not SERVER_SAVE_FILE.exists():
+            return {}
+
+        try:
+            data = json.loads(SERVER_SAVE_FILE.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return {}
+
+
+def read_server_progress():
+    """Load the progress stored for the current visitor IP."""
+
+    raw = read_all_server_progress().get(current_player_id())
+    if raw is None:
+        return None
+    return sanitise_progress(raw)
+
+
+def write_server_progress(payload_json):
+    """Atomically save the current visitor's progress on the server."""
+
+    try:
+        payload = json.loads(payload_json) if isinstance(payload_json, str) else payload_json
+        if not isinstance(payload, dict):
+            return False
+
+        with SERVER_SAVE_LOCK:
+            all_progress = {}
+            if SERVER_SAVE_FILE.exists():
+                try:
+                    existing = json.loads(SERVER_SAVE_FILE.read_text(encoding="utf-8"))
+                    if isinstance(existing, dict):
+                        all_progress = existing
+                except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                    all_progress = {}
+
+            all_progress[current_player_id()] = payload
+            temporary_file = SERVER_SAVE_FILE.with_suffix(".tmp")
+            temporary_file.write_text(
+                json.dumps(all_progress, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            temporary_file.replace(SERVER_SAVE_FILE)
+        return True
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+
+def delete_server_progress():
+    """Delete only the save belonging to the current visitor IP."""
+
+    with SERVER_SAVE_LOCK:
+        all_progress = {}
+        if SERVER_SAVE_FILE.exists():
+            try:
+                existing = json.loads(SERVER_SAVE_FILE.read_text(encoding="utf-8"))
+                if isinstance(existing, dict):
+                    all_progress = existing
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                all_progress = {}
+
+        all_progress.pop(current_player_id(), None)
+        try:
+            temporary_file = SERVER_SAVE_FILE.with_suffix(".tmp")
+            temporary_file.write_text(
+                json.dumps(all_progress, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            temporary_file.replace(SERVER_SAVE_FILE)
+        except OSError:
+            pass
+
+
 def read_browser_progress():
     """Read progress belonging only to the current browser."""
 
@@ -931,12 +1034,12 @@ def build_progress_payload():
 
 
 def save_progress():
-    """Queue an automatic save in this browser's Local Storage."""
+    """Save immediately by IP and queue a browser Local Storage backup."""
 
+    payload = build_progress_payload()
+    write_server_progress(payload)
     st.session_state.pending_browser_action = "save"
-    st.session_state.pending_browser_payload = (
-        build_progress_payload()
-    )
+    st.session_state.pending_browser_payload = payload
     st.session_state.browser_action_revision = (
         int(
             st.session_state.get(
@@ -1008,8 +1111,9 @@ def flush_pending_browser_action():
 
 
 def reset_saved_progress():
-    """Reset progress only for the current browser user."""
+    """Reset progress only for the current IP user."""
 
+    delete_server_progress()
     st.session_state.score = 0
     st.session_state.completed_modes = set()
     st.session_state.mode_stars = {}
@@ -2629,25 +2733,12 @@ def render_custom_image_puzzle():
 
 
 # -----------------------------------------------------------------------------
-# PLAYER PROFILE GATE
-# Every Player ID receives its own browser save and unfinished-attempt record.
+# AUTOMATIC IP PROFILE
+# Each public IP receives its own server save. Local Storage remains a backup.
 # -----------------------------------------------------------------------------
-query_player = normalise_player_id(st.query_params.get(PLAYER_QUERY_KEY, ""))
+st.session_state.player_id = current_player_id()
+st.session_state.setdefault("player_name", "Player")
 
-if not st.session_state.get("player_id") and query_player:
-    st.session_state.player_id = query_player
-    st.session_state.player_name = str(
-        st.query_params.get("player_name", query_player)
-    )[:30]
-
-if not current_player_id():
-    render_player_login()
-    st.stop()
-
-
-# Keep the active profile in the URL. This allows a new Streamlit Cloud
-# session created by a page link or browser refresh to restore the same player
-# instead of showing the login form again.
 active_player_id = current_player_id()
 active_player_name = current_player_name()
 
@@ -2657,38 +2748,27 @@ if st.query_params.get(PLAYER_QUERY_KEY) != active_player_id:
 if st.query_params.get("player_name") != active_player_name:
     st.query_params["player_name"] = active_player_name
 
-
-browser_loaded = st.session_state.get(
-    "browser_progress_loaded",
-    False,
-)
+browser_loaded = st.session_state.get("browser_progress_loaded", False)
 
 if not browser_loaded:
-    browser_value = read_browser_progress()
+    # Prefer the IP-keyed server save because it is not affected by a slow
+    # streamlit-js-eval response. Use Local Storage only as a fallback.
+    server_progress = read_server_progress()
 
-    # streamlit-js-eval may temporarily return None on Streamlit Cloud,
-    # especially after navigation creates a new page session. Do not stop
-    # the whole app on a permanent loading screen. Continue with a clean
-    # state for this session; saved progress can still be written normally
-    # after the app has loaded.
-    if browser_value is None:
-        initialise_state(
-            empty_progress()
-        )
+    if server_progress is not None:
+        initialise_state(server_progress)
     else:
-        initialise_state(
-            sanitise_progress(
-                browser_value
-            )
-        )
-
+        browser_value = read_browser_progress()
+        if browser_value is None:
+            # Do not permanently mark a failed JavaScript read as loaded.
+            # Start safely, while future saves are still written server-side.
+            initialise_state(empty_progress())
+        else:
+            restored = sanitise_progress(browser_value)
+            initialise_state(restored)
+            write_server_progress(build_progress_payload())
 else:
-    # State is already present in the active Streamlit session. Passing
-    # defaults here does not overwrite existing values because
-    # initialise_state only creates missing keys.
-    initialise_state(
-        empty_progress()
-    )
+    initialise_state(empty_progress())
 
 flush_pending_browser_action()
 
