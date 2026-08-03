@@ -102,14 +102,6 @@ def clear_runtime_game_state():
         "browser_action_revision",
     ]
 
-    # Also clear statistics keys
-    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
-    keys_to_clear.extend(stats_keys)
-    
-    # Clear last played keys
-    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
-    keys_to_clear.extend(last_played_keys)
-
     for key in keys_to_clear:
         st.session_state.pop(key, None)
 
@@ -1012,16 +1004,6 @@ def reset_saved_progress():
     st.session_state.selected_picture_card = None
     st.session_state.screen = "home"
 
-    # Clear statistics
-    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
-    for key in stats_keys:
-        st.session_state.pop(key, None)
-    
-    # Clear last played keys
-    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
-    for key in last_played_keys:
-        st.session_state.pop(key, None)
-
     st.session_state.pending_browser_action = "reset"
     st.session_state.pending_browser_payload = ""
     st.session_state.browser_action_revision = (
@@ -1045,124 +1027,10 @@ def mode_key(
     )
 
 
-# ============================================================
-# STATISTICS FUNCTIONS - Differentiated by Level
-# ============================================================
-
-def get_stats_key(level_index):
-    """Get the storage key for statistics of a specific level."""
-    return f"stats_level_{int(level_index)}"
-
-
-def update_stats(level_index, time_taken, moves_used):
-    """Update the average time and moves for a level."""
-    stats_key = get_stats_key(level_index)
-    
-    # Initialize stats if not exists
-    if stats_key not in st.session_state:
-        st.session_state[stats_key] = {
-            "attempts": 0,
-            "total_time": 0,
-            "total_moves": 0,
-            "best_time": None,
-            "best_moves": None,
-            "completed": False
-        }
-    
-    stats = st.session_state[stats_key]
-    stats["attempts"] += 1
-    stats["total_time"] += time_taken
-    stats["total_moves"] += moves_used
-    
-    if stats["best_time"] is None or time_taken < stats["best_time"]:
-        stats["best_time"] = time_taken
-    if stats["best_moves"] is None or moves_used < stats["best_moves"]:
-        stats["best_moves"] = moves_used
-
-
-def get_average_stats(level_index):
-    """Get the average time and moves for a level."""
-    stats_key = get_stats_key(level_index)
-    
-    if stats_key not in st.session_state:
-        return None, None, None, None, None
-    
-    stats = st.session_state[stats_key]
-    attempts = stats["attempts"]
-    
-    if attempts == 0:
-        return None, None, None, None, None
-    
-    avg_time = stats["total_time"] // attempts
-    avg_moves = stats["total_moves"] // attempts
-    
-    return avg_time, avg_moves, stats["best_time"], stats["best_moves"], attempts
-
-
-# ============================================================
-# LAST PLAYED TRACKING
-# ============================================================
-
-def update_last_played(level_index):
-    """Update the last played timestamp for a level."""
-    last_played_key = f"last_played_level_{int(level_index)}"
-    st.session_state[last_played_key] = time.time()
-
-
-def get_last_played(level_index):
-    """Get the last played timestamp for a level."""
-    last_played_key = f"last_played_level_{int(level_index)}"
-    if last_played_key in st.session_state:
-        return st.session_state[last_played_key]
-    return None
-
-
-def format_last_played(timestamp):
-    """Format the timestamp as a readable string."""
-    if timestamp is None:
-        return "Never"
-    dt = time.localtime(timestamp)
-    return time.strftime("%b %d, %Y at %I:%M %p", dt)
-
-
-# ============================================================
-
 
 def initialise_state(saved_progress):
     """Initialise the game and restore the last unfinished attempt."""
 
-    # If we already have valid data (score > 0 or completed modes), don't reset
-    if st.session_state.get("score", 0) > 0 or len(st.session_state.get("completed_modes", set())) > 0:
-        # Only set missing keys, don't overwrite existing ones
-        defaults = {
-            "screen": saved_progress.get("last_screen", "home"),
-            "selected_level": saved_progress.get("selected_level", 0),
-            "difficulty": saved_progress.get("difficulty", "Easy"),
-            "layout": None,
-            "previous_layout": None,
-            "previous_sequence": [None] * 6,
-            "moves": 0,
-            "start_time": None,
-            "decision_answers": {},
-            "pending_decision": None,
-            "result": None,
-            "show_hint": False,
-            "sort_key": 0,
-            "slot_warning": False,
-            "browser_progress_loaded": True,
-            "pending_browser_action": None,
-            "pending_browser_payload": "",
-            "browser_action_revision": 0,
-            "attempt_restored": False,
-            "custom_attempt_id": "",
-            "picture_component_revision": None,
-        }
-        for key, value in defaults.items():
-            if key not in st.session_state:
-                st.session_state[key] = copy.deepcopy(value)
-        return
-
-    # Otherwise, initialize from saved progress
     defaults = {
         "screen": saved_progress["last_screen"],
         "selected_level": saved_progress["selected_level"],
@@ -1195,11 +1063,6 @@ def initialise_state(saved_progress):
             st.session_state[key] = (
                 copy.deepcopy(value)
             )
-        elif key in ["score", "completed_modes", "mode_stars", "selected_level", "difficulty", "screen"]:
-            # Don't overwrite these if they already exist
-            pass
-        else:
-            st.session_state[key] = copy.deepcopy(value)
 
     if not isinstance(
         st.session_state.completed_modes,
@@ -2050,15 +1913,7 @@ def evaluate_level():
                 current_mode_key
             ] = stars
 
-        # Force immediate save
         save_progress()
-        flush_pending_browser_action()
-
-    # Record statistics for this attempt (by level only)
-    update_stats(level_index, elapsed, st.session_state.moves)
-    
-    # Update last played
-    update_last_played(level_index)
 
     st.session_state.result = {
         "passed": passed,
@@ -2239,16 +2094,6 @@ def submit_custom_result(payload):
         elif current_mode_key not in st.session_state.mode_stars:
             st.session_state.mode_stars[current_mode_key] = stars
 
-        # Force immediate save
-        save_progress()
-        flush_pending_browser_action()
-
-    # Record statistics for this attempt (by level only)
-    update_stats(level_index, elapsed, moves)
-    
-    # Update last played
-    update_last_played(level_index)
-
     st.session_state.moves = moves
     st.session_state.start_time = time.time() - elapsed
     st.session_state.decision_answers = dict(answers)
@@ -2277,6 +2122,9 @@ def submit_custom_result(payload):
     st.query_params["level"] = str(level_index)
 
     save_progress()
+
+    # Write the browser save before rerunning so the result screen survives
+    # the next Streamlit refresh.
     flush_pending_browser_action()
     st.rerun()
 
@@ -3374,16 +3222,7 @@ st.markdown(
 
 with st.sidebar:
     st.markdown(f"### Player: {current_player_name()}")
-    st.caption(f"ID: {current_player_id()}")
     st.caption("Your progress and unfinished attempt are saved under this Player ID.")
-    
-    # Show save status
-    save_key = browser_storage_key()
-    st.caption(f"💾 Save key: `{save_key[:30]}...`")
-    
-    if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
-        st.info("📌 You have an unfinished game")
-    
     if st.button("SWITCH PLAYER", use_container_width=True):
         clear_runtime_game_state()
         st.session_state.pop("player_id", None)
@@ -3481,38 +3320,6 @@ def render_home():
             unsafe_allow_html=True,
         )
 
-        # Check if there's an unfinished attempt
-        if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
-            st.markdown(
-                """
-                <div style="text-align:center;padding:15px;margin-bottom:15px;
-                            background:#fff0ae;border:4px solid #202124;border-radius:14px;
-                            box-shadow:6px 6px 0 #202124;">
-                    <span style="font-size:1.2rem;font-weight:bold;">⏳ You have an unfinished game!</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            
-            continue_col1, continue_col2 = st.columns([1, 1])
-            with continue_col1:
-                if st.button("▶ CONTINUE GAME", use_container_width=True):
-                    # Restore the game state
-                    level_index = st.session_state.selected_level
-                    navigate("puzzle", level_index)
-            
-            with continue_col2:
-                if st.button("🗑 DISCARD AND START FRESH", use_container_width=True):
-                    st.session_state.layout = None
-                    st.session_state.previous_layout = None
-                    st.session_state.previous_sequence = [None] * 6
-                    st.session_state.start_time = None
-                    st.session_state.pending_decision = None
-                    st.session_state.decision_answers = {}
-                    st.session_state.selected_picture_card = None
-                    save_progress()
-                    st.rerun()
-
         column_1, column_2, column_3 = (
             st.columns(3)
         )
@@ -3551,15 +3358,6 @@ def render_map():
         for level_index in range(len(LEVELS)):
             unlocked = level_unlocked(level_index)
             level_number = level_index + 1
-            
-            # Get stars for this level
-            stars = level_star_total(level_index)
-            
-            # Create star display string
-            if stars == 0:
-                star_display = "☆☆☆"
-            else:
-                star_display = "⭐" * stars + "☆" * (3 - stars)
 
             if unlocked:
                 # Only unlocked levels are real clickable links.
@@ -3570,14 +3368,8 @@ def render_map():
                         f'map-level-{level_number}" '
                         f'href="{game_query_url("difficulty", level_index)}" '
                         f'target="_self" '
-                        f'title="Level {level_number}: {star_display}" '
+                        f'title="Open Level {level_number}" '
                         f'aria-label="Open Level {level_number}">'
-                        f'<span style="position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);'
-                        f'background:rgba(32,33,36,0.9);color:white;padding:3px 10px;border-radius:8px;'
-                        f'font-size:0.75rem;white-space:nowrap;font-family:Arial,sans-serif;'
-                        f'border:2px solid #ffca28;box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
-                        f'{star_display}'
-                        f'</span>'
                         f'</a>'
                     )
                 )
@@ -3590,18 +3382,12 @@ def render_map():
                         f'map-level-{level_number}" '
                         f'title="Complete Easy mode of Level '
                         f'{level_number - 1} to unlock">'
-                        f'<span style="position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);'
-                        f'background:rgba(100,100,100,0.9);color:white;padding:3px 10px;border-radius:8px;'
-                        f'font-size:0.7rem;white-space:nowrap;font-family:Arial,sans-serif;'
-                        f'border:2px solid #666;box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
-                        f'🔒 LOCKED'
-                        f'</span>'
                         f'</div>'
                     )
                 )
 
         map_html = (
-            '<div class="progress-map-wrapper" style="margin-bottom:60px;">'
+            '<div class="progress-map-wrapper">'
             f'<img src="{map_uri}" alt="School Progress Map">'
             + "".join(hotspot_parts)
             + "</div>"
@@ -3632,7 +3418,6 @@ def render_map():
 
         for level_index, column in enumerate(columns):
             unlocked = level_unlocked(level_index)
-            stars = level_star_total(level_index)
 
             with column:
                 st.markdown(
@@ -3642,9 +3427,6 @@ def render_map():
                         f'{1 if unlocked else 0.5};">'
                         f'<h2>LEVEL {level_index + 1}</h2>'
                         f'<p>{LEVELS[level_index]["title"]}</p>'
-                        f'<div style="font-size:1.5rem;">'
-                        f'{"⭐" * stars}{"☆" * (3 - stars)}'
-                        f'</div>'
                         '</div>'
                     ),
                     unsafe_allow_html=True,
@@ -3687,29 +3469,12 @@ if hasattr(
                     - st.session_state.start_time
                 ),
             )
-        
-        # Get time targets for color coding
-        level_index = st.session_state.selected_level
-        difficulty = st.session_state.difficulty
-        target = targets(level_index, difficulty)
-        
-        # Determine color based on time relative to targets
-        if elapsed <= target["three_time"]:
-            color = "#20a43a"  # Green - good
-        elif elapsed <= target["two_time"]:
-            color = "#ffca28"  # Yellow - okay
-        else:
-            color = "#ef3e3e"  # Red - too slow
-        
-        # Add target times display
-        target_text = f"Target: {target['two_time']}s / {target['three_time']}s"
 
         st.markdown(
             (
-                f'<div class="stat-box" style="border-color:{color};">'
+                '<div class="stat-box">'
                 '<div>TIME</div>'
-                f'<span style="color:{color};font-size:2rem;">{elapsed}s</span>'
-                f'<div style="font-size:0.7rem;margin-top:4px;color:#666;">{target_text}</div>'
+                f'<span>{elapsed}s</span>'
                 '</div>'
             ),
             unsafe_allow_html=True,
@@ -3731,29 +3496,12 @@ else:
                     - st.session_state.start_time
                 ),
             )
-        
-        # Get time targets for color coding
-        level_index = st.session_state.selected_level
-        difficulty = st.session_state.difficulty
-        target = targets(level_index, difficulty)
-        
-        # Determine color based on time relative to targets
-        if elapsed <= target["three_time"]:
-            color = "#20a43a"  # Green - good
-        elif elapsed <= target["two_time"]:
-            color = "#ffca28"  # Yellow - okay
-        else:
-            color = "#ef3e3e"  # Red - too slow
-        
-        # Add target times display
-        target_text = f"Target: {target['two_time']}s / {target['three_time']}s"
 
         st.markdown(
             (
-                f'<div class="stat-box" style="border-color:{color};">'
+                '<div class="stat-box">'
                 '<div>TIME</div>'
-                f'<span style="color:{color};font-size:2rem;">{elapsed}s</span>'
-                f'<div style="font-size:0.7rem;margin-top:4px;color:#666;">{target_text}</div>'
+                f'<span>{elapsed}s</span>'
                 '</div>'
             ),
             unsafe_allow_html=True,
@@ -4384,88 +4132,6 @@ elif screen == "result":
                     unsafe_allow_html=True,
                 )
 
-        # Add score animation if points were earned
-        if result["passed"] and result["points"] > 0:
-            st.balloons()
-            st.markdown(
-                f"""
-                <div style="text-align:center;padding:20px;margin:10px 0;
-                            background:#ffca28;border:5px solid #202124;border-radius:18px;
-                            box-shadow:8px 8px 0 #202124;animation:pulse 1.5s ease-in-out;">
-                    <div style="font-family:'Bangers',cursive;font-size:3rem;color:#202124;">
-                        +{result['points']} POINTS!
-                    </div>
-                    <div style="font-size:1rem;color:#202124;">
-                        ⭐ {result['stars']} stars earned!
-                    </div>
-                </div>
-                <style>
-                @keyframes pulse {{
-                    0% {{ transform: scale(1); }}
-                    50% {{ transform: scale(1.05); }}
-                    100% {{ transform: scale(1); }}
-                }}
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # Show statistics comparison (by level)
-        avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
-            level_index
-        )
-        
-        if attempts is not None and attempts > 0:
-            st.markdown(
-                (
-                    '<div class="comic-panel" style="margin-top:20px;">'
-                    '<h3 style="margin-top:0;">📊 LEVEL STATISTICS</h3>'
-                    '</div>'
-                ),
-                unsafe_allow_html=True,
-            )
-            
-            stat_cols = st.columns(4)
-            
-            with stat_cols[0]:
-                st.metric(
-                    "Your Time",
-                    f"{result['time']}s",
-                    delta=f"{avg_time - result['time']}s vs avg" if result['time'] < avg_time else None,
-                    delta_color="normal" if result['time'] < avg_time else "inverse"
-                )
-            
-            with stat_cols[1]:
-                st.metric(
-                    "Your Moves",
-                    f"{result['moves']}",
-                    delta=f"{avg_moves - result['moves']} vs avg" if result['moves'] < avg_moves else None,
-                    delta_color="normal" if result['moves'] < avg_moves else "inverse"
-                )
-            
-            with stat_cols[2]:
-                if best_time is not None:
-                    st.metric(
-                        "Best Time",
-                        f"{best_time}s",
-                        delta="🏆" if result['time'] == best_time else None
-                    )
-            
-            with stat_cols[3]:
-                if best_moves is not None:
-                    st.metric(
-                        "Best Moves",
-                        f"{best_moves}",
-                        delta="🏆" if result['moves'] == best_moves else None
-                    )
-            
-            st.caption(f"Total attempts for this level: {attempts}")
-            
-            # Show last played
-            last_played = get_last_played(level_index)
-            if last_played:
-                st.caption(f"Last played: {format_last_played(last_played)}")
-
         if result["passed"]:
             if (
                 result["difficulty"]
@@ -4630,7 +4296,7 @@ elif screen == "score":
             '<div class="comic-panel" '
             'style="text-align:center;">'
             '<div class="comic-label">'
-            'SCORE & STATISTICS'
+            'SCORE'
             '</div>'
             f'<h1>'
             f'{st.session_state.score} POINTS'
@@ -4655,11 +4321,6 @@ elif screen == "score":
     for level_index, level in enumerate(
         LEVELS
     ):
-        # Get statistics for this level (combined across all difficulties)
-        avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
-            level_index
-        )
-        
         st.markdown(
             (
                 '<div class="comic-panel">'
@@ -4671,38 +4332,6 @@ elif screen == "score":
             ),
             unsafe_allow_html=True,
         )
-        
-        # Show level statistics
-        if attempts is not None and attempts > 0:
-            st.markdown(
-                (
-                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
-                    f'background:#e3f2fd;border-radius:12px;border:3px solid #1565c0;">'
-                    f'<b>📊 LEVEL STATISTICS</b><br>'
-                    f'Average Time: <b>{avg_time}s</b> | '
-                    f'Average Moves: <b>{avg_moves}</b><br>'
-                    f'Best Time: <b>{best_time}s</b> | '
-                    f'Best Moves: <b>{best_moves}</b><br>'
-                    f'Total Attempts: <b>{attempts}</b>'
-                    f'</div>'
-                ),
-                unsafe_allow_html=True,
-            )
-            
-            # Show last played
-            last_played = get_last_played(level_index)
-            if last_played:
-                st.caption(f"Last played: {format_last_played(last_played)}")
-        else:
-            st.markdown(
-                (
-                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
-                    f'color:#999;font-style:italic;">'
-                    f'No attempts recorded for this level yet'
-                    f'</div>'
-                ),
-                unsafe_allow_html=True,
-            )
 
         mode_columns = st.columns(
             3
@@ -4738,11 +4367,13 @@ elif screen == "score":
             )
 
             if completed:
-                status = "✅ Completed"
+                status = "Completed"
+
             elif unlocked:
-                status = "🔓 Unlocked"
+                status = "Unlocked"
+
             else:
-                status = "🔒 Locked"
+                status = "Locked"
 
             with column:
                 st.markdown(
