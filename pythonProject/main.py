@@ -95,7 +95,8 @@ def clear_runtime_game_state():
 
     keys_to_clear = [
         "screen", "selected_level", "difficulty", "score",
-        "completed_modes", "mode_stars", "layout", "previous_layout",
+        "completed_modes", "mode_stars", "unlocked_achievements",
+        "layout", "previous_layout",
         "previous_sequence", "moves", "start_time", "decision_answers",
         "pending_decision", "result", "show_hint", "sort_key",
         "slot_warning", "browser_progress_loaded", "attempt_restored",
@@ -578,6 +579,7 @@ def empty_progress():
         "score": 0,
         "completed_modes": set(),
         "mode_stars": {},
+        "unlocked_achievements": set(),
         "level_stats": {},
         "last_played": {},
         "attempt": None,
@@ -694,6 +696,12 @@ def sanitise_progress(raw_value):
         if last_screen not in allowed_screens:
             last_screen = "home"
 
+        unlocked_achievements = {
+            str(item)
+            for item in data.get("unlocked_achievements", [])
+            if isinstance(item, (str, int))
+        }
+
         raw_level_stats = data.get("level_stats", {})
         level_stats = {}
 
@@ -748,6 +756,7 @@ def sanitise_progress(raw_value):
             "score": score,
             "completed_modes": completed_modes,
             "mode_stars": mode_stars,
+            "unlocked_achievements": unlocked_achievements,
             "level_stats": level_stats,
             "last_played": last_played,
             "attempt": attempt,
@@ -1027,6 +1036,12 @@ def build_progress_payload():
                 {},
             ).items()
         },
+        "unlocked_achievements": sorted(
+            st.session_state.get(
+                "unlocked_achievements",
+                set(),
+            )
+        ),
         "last_screen": str(
             st.session_state.get(
                 "screen",
@@ -1159,6 +1174,7 @@ def reset_saved_progress():
     st.session_state.score = 0
     st.session_state.completed_modes = set()
     st.session_state.mode_stars = {}
+    st.session_state.unlocked_achievements = set()
     st.session_state.layout = None
     st.session_state.previous_layout = None
     st.session_state.previous_sequence = [None] * 6
@@ -1297,6 +1313,10 @@ def initialise_state(saved_progress):
         "score": saved_progress["score"],
         "completed_modes": saved_progress["completed_modes"],
         "mode_stars": saved_progress["mode_stars"],
+        "unlocked_achievements": saved_progress.get(
+            "unlocked_achievements",
+            set(),
+        ),
         "layout": None,
         "previous_layout": None,
         "previous_sequence": [None] * 6,
@@ -1362,6 +1382,14 @@ def initialise_state(saved_progress):
         dict,
     ):
         st.session_state.mode_stars = {}
+
+    if not isinstance(
+        st.session_state.unlocked_achievements,
+        set,
+    ):
+        st.session_state.unlocked_achievements = set(
+            st.session_state.unlocked_achievements
+        )
 
     attempt = saved_progress.get(
         "attempt"
@@ -1615,6 +1643,122 @@ def level_star_total(level_index):
         for difficulty
         in DIFFICULTIES
     )
+
+
+
+ACHIEVEMENT_DEFINITIONS = [
+    {
+        "id": "first_step",
+        "name": "FIRST STEP",
+        "icon": "👣",
+        "description": "Complete your first difficulty mode.",
+        "target": 1,
+        "progress_type": "completed_modes",
+    },
+    {
+        "id": "helper_hero",
+        "name": "HELPER HERO",
+        "icon": "🤝",
+        "description": "Complete Easy mode for all 3 levels.",
+        "target": len(LEVELS),
+        "progress_type": "easy_modes",
+    },
+    {
+        "id": "life_saver",
+        "name": "LIFE SAVER",
+        "icon": "🛟",
+        "description": "Complete Medium mode for all 3 levels.",
+        "target": len(LEVELS),
+        "progress_type": "medium_modes",
+    },
+    {
+        "id": "first_aid_legend",
+        "name": "FIRST AID LEGEND",
+        "icon": "🏆",
+        "description": "Complete every Easy, Medium and Hard mode.",
+        "target": len(LEVELS) * len(DIFFICULTIES),
+        "progress_type": "completed_modes",
+    },
+    {
+        "id": "star_collector",
+        "name": "STAR COLLECTOR",
+        "icon": "⭐",
+        "description": "Collect at least 18 stars.",
+        "target": 18,
+        "progress_type": "stars",
+    },
+    {
+        "id": "perfect_hero",
+        "name": "PERFECT HERO",
+        "icon": "🌟",
+        "description": "Collect all 27 stars.",
+        "target": len(LEVELS) * len(DIFFICULTIES) * 3,
+        "progress_type": "stars",
+    },
+]
+
+
+def achievement_progress(achievement):
+    """Return current progress and target for one achievement."""
+
+    progress_type = achievement["progress_type"]
+
+    if progress_type == "completed_modes":
+        current = len(st.session_state.completed_modes)
+
+    elif progress_type == "easy_modes":
+        current = sum(
+            1
+            for level_index in range(len(LEVELS))
+            if mode_completed(level_index, "Easy")
+        )
+
+    elif progress_type == "medium_modes":
+        current = sum(
+            1
+            for level_index in range(len(LEVELS))
+            if mode_completed(level_index, "Medium")
+        )
+
+    elif progress_type == "stars":
+        current = total_stars()
+
+    else:
+        current = 0
+
+    target = int(achievement["target"])
+    return min(current, target), target
+
+
+def refresh_achievements(show_notifications=False):
+    """Unlock newly earned achievements and optionally show a popup."""
+
+    newly_unlocked = []
+
+    for achievement in ACHIEVEMENT_DEFINITIONS:
+        current, target = achievement_progress(achievement)
+
+        if (
+            current >= target
+            and achievement["id"]
+            not in st.session_state.unlocked_achievements
+        ):
+            st.session_state.unlocked_achievements.add(
+                achievement["id"]
+            )
+            newly_unlocked.append(achievement)
+
+    if show_notifications:
+        for achievement in newly_unlocked:
+            st.toast(
+                (
+                    f'{achievement["icon"]} Achievement unlocked: '
+                    f'{achievement["name"]}'
+                ),
+                icon="🏆",
+            )
+
+    return newly_unlocked
 
 
 
@@ -2207,6 +2351,9 @@ def evaluate_level():
         save_progress()
         flush_pending_browser_action()
 
+    # Unlock any achievements earned from this result.
+    refresh_achievements(show_notifications=True)
+
     # Record statistics for this attempt (by level only)
     update_stats(level_index, elapsed, st.session_state.moves)
     
@@ -2399,6 +2546,9 @@ def submit_custom_result(payload):
         # Force immediate save
         save_progress()
         flush_pending_browser_action()
+
+    # Unlock any achievements earned from this result.
+    refresh_achievements(show_notifications=True)
 
     # Record statistics for this attempt (by level only)
     update_stats(level_index, elapsed, moves)
@@ -4972,36 +5122,18 @@ elif screen == "score":
 elif screen == "achievements":
     show_top_bar()
 
-    completed_mode_count = len(
-        st.session_state.completed_modes
-    )
+    # Recalculate achievements in case old saved progress already meets them.
+    newly_unlocked = refresh_achievements(show_notifications=True)
+    if newly_unlocked:
+        save_progress()
+        flush_pending_browser_action()
 
-    achievements = [
-        (
-            "FIRST STEP",
-            completed_mode_count >= 1,
-        ),
-        (
-            "HELPER HERO",
-            completed_mode_count >= 3,
-        ),
-        (
-            "LIFE SAVER",
-            completed_mode_count >= 6,
-        ),
-        (
-            "FIRST AID LEGEND",
-            completed_mode_count >= 9,
-        ),
-        (
-            "STAR COLLECTOR",
-            total_stars() >= 18,
-        ),
-        (
-            "PERFECT HERO",
-            total_stars() >= 27,
-        ),
-    ]
+    unlocked_count = len(
+        st.session_state.unlocked_achievements
+    )
+    total_achievement_count = len(
+        ACHIEVEMENT_DEFINITIONS
+    )
 
     st.markdown(
         (
@@ -5012,28 +5144,75 @@ elif screen == "achievements":
         unsafe_allow_html=True,
     )
 
-    achievement_columns = (
-        st.columns(2)
+    st.markdown(
+        (
+            '<div class="comic-panel" style="text-align:center;">'
+            f'<h2 style="margin-bottom:8px;">'
+            f'{unlocked_count} / {total_achievement_count} UNLOCKED'
+            f'</h2>'
+            '<p style="margin:0;">'
+            'Complete levels and collect stars to earn every badge.'
+            '</p>'
+            '</div>'
+        ),
+        unsafe_allow_html=True,
     )
 
-    for index, achievement in enumerate(
-        achievements
-    ):
-        name, unlocked = achievement
+    achievement_columns = st.columns(2, gap="large")
 
-        with achievement_columns[
-            index % 2
-        ]:
+    for index, achievement in enumerate(
+        ACHIEVEMENT_DEFINITIONS
+    ):
+        achievement_id = achievement["id"]
+        current, target = achievement_progress(achievement)
+        unlocked = (
+            achievement_id
+            in st.session_state.unlocked_achievements
+        )
+
+        percentage = (
+            100
+            if target <= 0
+            else min(100, round((current / target) * 100))
+        )
+
+        status_text = (
+            "UNLOCKED"
+            if unlocked
+            else f"{current} / {target}"
+        )
+
+        status_icon = "✓" if unlocked else "🔒"
+        card_background = "#fff8dc" if unlocked else "#f2f2f2"
+        status_background = "#20a43a" if unlocked else "#777777"
+        text_colour = "#202124" if unlocked else "#666666"
+
+        with achievement_columns[index % 2]:
             st.markdown(
                 (
                     '<div class="comic-panel" '
-                    'style="text-align:center;">'
-                    f'<h2>'
-                    f'{name}'
-                    f'</h2>'
-                    f'<p>'
-                    f'{"UNLOCKED" if unlocked else "LOCKED"}'
-                    f'</p>'
+                    f'style="text-align:center;background:{card_background};'
+                    'min-height:285px;padding:28px 24px;">'
+                    f'<div style="font-size:3rem;line-height:1;">'
+                    f'{achievement["icon"]}'
+                    '</div>'
+                    f'<h2 style="margin:14px 0 8px 0;color:{text_colour};">'
+                    f'{achievement["name"]}'
+                    '</h2>'
+                    f'<p style="min-height:48px;color:{text_colour};">'
+                    f'{achievement["description"]}'
+                    '</p>'
+                    '<div style="height:22px;background:#dedede;'
+                    'border:3px solid #202124;border-radius:12px;'
+                    'overflow:hidden;margin:16px 0 12px 0;">'
+                    f'<div style="width:{percentage}%;height:100%;'
+                    f'background:{status_background};"></div>'
+                    '</div>'
+                    f'<div style="display:inline-block;background:{status_background};'
+                    'color:white;border:3px solid #202124;border-radius:10px;'
+                    'padding:7px 18px;font-weight:900;">'
+                    f'{status_icon} {status_text}'
+                    '</div>'
                     '</div>'
                 ),
                 unsafe_allow_html=True,
@@ -5044,3 +5223,4 @@ elif screen == "achievements":
         use_container_width=True,
     ):
         navigate("home")
+
