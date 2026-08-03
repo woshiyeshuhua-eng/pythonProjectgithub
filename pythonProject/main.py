@@ -283,29 +283,29 @@ LEVELS = [
         ),
     },
     {
-        "title": Chemical Splash",
-        "setting": "School Lab",
-        "story": "A student splashes chemicals into his eyes.",
+        "title": "Student Falls",
+        "setting": "School Corridor",
+        "story": "A student trips in the school corridor and falls.",
         "correct_cards": ["L2_E_1", "L2_E_2", "L2_E_3", "L2_E_4", "L2_M_1", "L2_M_2", "L2_M_3", "L2_M_4", "L2_M_5", "L2_M_6", "L2_H_1", "L2_H_2", "L2_H_3", "L2_H_4", "L2_H_5", "L2_H_6", "L2_H_7", "L2_H_8"],
         "wrong_cards": ["L2_H_W1", "L2_H_W2"],
         "cards": {
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
             # ============================================================
-            "L2_E_1": "Chemical splash goes into the eye",
-            "L2_E_2": "Wash the eye at the eyewash station",
-            "L2_E_3": "Wash for 15-20mins",
-            "L2_E_4": "Seek medical attention",
+            "L2_E_1": "Student trips and falls",
+            "L2_E_2": "Check the area is safe",
+            "L2_E_3": "Check the student before moving",
+            "L2_E_4": "Inform the teacher",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
             # ============================================================
-            "L2_M_1": "Chemical splash goes into the eye",
-            "L2_M_2": "Painful sting on eye",
-            "L2_M_3": "Call for help",
-            "L2_M_4": "Wash the eye at the eyewash station",
-            "L2_M_5": "Wash for 15-20mins",
-            "L2_M_6": "Seek medical attention",
+            "L2_M_1": "Student trips and falls",
+            "L2_M_2": "Check the area is safe",
+            "L2_M_3": "Check the student before moving",
+            "L2_M_4": "Inform the teacher",
+            "L2_M_5": "Clean the wound with clean materials",
+            "L2_M_6": "Apply a clean dressing",
             
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
@@ -332,14 +332,13 @@ LEVELS = [
             {
                 "id": "easy_fall_move",
                 "difficulty": "Easy",
-                "trigger": "L2_E_2",
-                "question": "How should you wash the eye?",
+                "trigger": "L2_E_3",
+                "question": "Should the student be moved immediately?",
                 "options": [
-                    "Away from the unaffected eye",
-                    "Towards the unaffected eye",
-                    "Does not matter",
+                    "No, check for injury first",
+                    "Yes, pull the student up",
                 ],
-                "correct": "Away from the unaffected eye",
+                "correct": "No, check for injury first",
             },
             
             # ============================================================
@@ -348,14 +347,13 @@ LEVELS = [
             {
                 "id": "medium_fall_clean",
                 "difficulty": "Medium",
-                "trigger": "L2_M_3",
-                "question": "How long do you wash the eye?",
+                "trigger": "L2_M_5",
+                "question": "What should be used to clean the wound?",
                 "options": [
-                    "5-10mins",
-                    "10-15mins",
-                    "As long as possible",
+                    "Clean water and clean materials",
+                    "Dirty tissue",
                 ],
-                "correct": "10-15mins",
+                "correct": "Clean water and clean materials",
             },
             
             # ============================================================
@@ -410,38 +408,38 @@ LEVELS = [
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
             # ============================================================
-            "L3_E_1": "Student feels dizzy and faints",
-            "L3_E_2": "Check for responsiveness",
-            "L3_E_3": "Elevate the legs",
-            "L3_E_4": "Do not crowd around",
+            "L3_E_1": "Student feels dizzy",
+            "L3_E_2": "Student faints",
+            "L3_E_3": "Check responsiveness",
+            "L3_E_4": "Call for help",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
             # ============================================================
-            "L3_M_1": "Student feels dizzy and faints",
-            "L3_M_2": "Inform someone to call for 995",
+            "L3_M_1": "Student feels dizzy",
+            "L3_M_2": "Student faints",
             "L3_M_3": "Check responsiveness",
-            "L3_M_4": "Elevate the legs",
-            "L3_M_5": "Do not crowd around",
-            "L3_M_6": "Stay and monitor the student while waiting for 995",
+            "L3_M_4": "Call for help",
+            "L3_M_5": "Do not give food or drink",
+            "L3_M_6": "Stay and monitor the student",
             
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
             # ============================================================
-            "L3_H_1": "Student feels dizzy and faints",
-            "L3_H_2": "Inform someone to call for 995",
+            "L3_H_1": "Student feels dizzy",
+            "L3_H_2": "Student faints",
             "L3_H_3": "Check responsiveness",
-            "L3_H_4": "Loosen any tight clothing",
-            "L3_H_5": "Elevate the legs",
-            "L3_H_6": "Do not crowd around",
-            "L3_H_7": "Stay and monitor the student while waiting for 995",
-            "L3_H_8": "Explain what happened",
+            "L3_H_4": "Call for help",
+            "L3_H_5": "Do not give food or drink",
+            "L3_H_6": "Stay and monitor the student",
+            "L3_H_7": "Check breathing",
+            "L3_H_8": "Keep the student safe",
             
             # ============================================================
             # WRONG CARDS (2 total) - Only appear in Hard mode
             # ============================================================
-            "L3_H_W1": "Crowd around and call her awake",
-            "L3_H_W2": "Carry her",
+            "L3_H_W1": "Give food or drink while unconscious",
+            "L3_H_W2": "Leave the student alone",
         },
         "decisions": [
             # ============================================================
@@ -451,13 +449,12 @@ LEVELS = [
                 "id": "easy_faint_response",
                 "difficulty": "Easy",
                 "trigger": "L3_E_3",
-                "question": "How high do you elevate the legs",
+                "question": "What should you check first?",
                 "options": [
-                    "Above the heart",
-                    "As high as possible",
-                    "As low as possible",
+                    "Responsiveness",
+                    "Check for injuries",
                 ],
-                "correct": "Above the heart",
+                "correct": "Responsiveness",
             },
             
             # ============================================================
@@ -466,13 +463,10 @@ LEVELS = [
             {
                 "id": "medium_faint_food",
                 "difficulty": "Medium",
-                "trigger": "L3_M_6",
-                "question": "What do you check while waiting for the ambulance?",
-                "options": [
-                    "Just wait",
-                    "Monitor pulse and breathing",
-                ],
-                "correct": "Monitor pulse and breathing",
+                "trigger": "L3_M_5",
+                "question": "Should food or drink be given while unconscious?",
+                "options": ["No", "Yes"],
+                "correct": "No",
             },
             
             # ============================================================
@@ -481,38 +475,35 @@ LEVELS = [
             {
                 "id": "hard_faint_breathing",
                 "difficulty": "Hard",
-                "trigger": "L3_H_2",
-                "question": "What is the ambulance number?",
+                "trigger": "L3_H_7",
+                "question": "What should you check after responsiveness?",
                 "options": [
-                    "999",
-                    "911",
-                    "995",
+                    "Breathing",
+                    "Blood pressure",
                 ],
-                "correct": "995",
+                "correct": "Breathing",
             },
             {
                 "id": "hard_faint_position",
                 "difficulty": "Hard",
-                "trigger": "L3_H_8",
-                "question": "What do you tell the paramedics?",
+                "trigger": "L3_H_6",
+                "question": "What should you do if the student is unconscious?",
                 "options": [
-                    "Anything that is not related",
-                    "Anything that may help the patient (when she fainted, past medical history)",
+                    "Stay and monitor",
+                    "Leave to get help",
                 ],
-                "correct": "Anything that may help the patient (when she fainted, past medical history)",
+                "correct": "Stay and monitor",
             },
             {
                 "id": "hard_faint_safe",
                 "difficulty": "Hard",
-                "trigger": "L3_H_7",
-                "question": "How often do you check for breathing and pulse?",
+                "trigger": "L3_H_8",
+                "question": "How should you keep the student safe?",
                 "options": [
-                    "Every 5mins",
-                    "Every 30mins",
-                    "Every 2mins",
-                    "Every 1min",
+                    "Stay with them and monitor",
+                    "Leave them alone",
                 ],
-                "correct": "Every 2mins",
+                "correct": "Stay with them and monitor",
             },
         ],
         "hint": (
@@ -1140,6 +1131,38 @@ def format_last_played(timestamp):
 def initialise_state(saved_progress):
     """Initialise the game and restore the last unfinished attempt."""
 
+    # If we already have valid data (score > 0 or completed modes), don't reset
+    if st.session_state.get("score", 0) > 0 or len(st.session_state.get("completed_modes", set())) > 0:
+        # Only set missing keys, don't overwrite existing ones
+        defaults = {
+            "screen": saved_progress.get("last_screen", "home"),
+            "selected_level": saved_progress.get("selected_level", 0),
+            "difficulty": saved_progress.get("difficulty", "Easy"),
+            "layout": None,
+            "previous_layout": None,
+            "previous_sequence": [None] * 6,
+            "moves": 0,
+            "start_time": None,
+            "decision_answers": {},
+            "pending_decision": None,
+            "result": None,
+            "show_hint": False,
+            "sort_key": 0,
+            "slot_warning": False,
+            "browser_progress_loaded": True,
+            "pending_browser_action": None,
+            "pending_browser_payload": "",
+            "browser_action_revision": 0,
+            "attempt_restored": False,
+            "custom_attempt_id": "",
+            "picture_component_revision": None,
+        }
+        for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = copy.deepcopy(value)
+        return
+
+    # Otherwise, initialize from saved progress
     defaults = {
         "screen": saved_progress["last_screen"],
         "selected_level": saved_progress["selected_level"],
@@ -1172,6 +1195,11 @@ def initialise_state(saved_progress):
             st.session_state[key] = (
                 copy.deepcopy(value)
             )
+        elif key in ["score", "completed_modes", "mode_stars", "selected_level", "difficulty", "screen"]:
+            # Don't overwrite these if they already exist
+            pass
+        else:
+            st.session_state[key] = copy.deepcopy(value)
 
     if not isinstance(
         st.session_state.completed_modes,
