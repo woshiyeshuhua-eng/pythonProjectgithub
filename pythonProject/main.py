@@ -373,7 +373,7 @@ LEVELS = [
                     "Rub it out",
                     "Go to an eye wash station",
                 ],
-                "correct": "Consciousness and movement",
+                "correct": "Go to an eye wash station",
             },
             {
                 "id": "hard_fall_clean_time",
