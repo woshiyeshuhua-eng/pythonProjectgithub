@@ -207,7 +207,7 @@ LEVELS = [
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
             # ============================================================
             "L1_H_1": "Student realises",
-            "L1_H_2": "Friend seeks help",
+            "L1_H_2": "Friend finds out",
             "L1_H_3": "Notify the teacher",
             "L1_H_4": "Pinch bridge of the nose",
             "L1_H_5": "Retrieve ice pack",
