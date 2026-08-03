@@ -310,14 +310,14 @@ LEVELS = [
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
             # ============================================================
-            "L2_H_1": "Student trips and falls",
-            "L2_H_2": "Check the area is safe",
-            "L2_H_3": "Check the student before moving",
-            "L2_H_4": "Inform the teacher",
-            "L2_H_5": "Clean the wound with clean materials",
-            "L2_H_6": "Apply a clean dressing",
-            "L2_H_7": "Monitor the student",
-            "L2_H_8": "Provide reassurance",
+            "L2_H_1": "Chemical splash goes into the eye",
+            "L2_H_2": "Painful sting on eye",
+            "L2_H_3": "Call for help",
+            "L2_H_4": "Wash the eye at the eyewash station",
+            "L2_H_5": "Blink the eyes as you wash",
+            "L2_H_6": "Wash for 15-20mins",
+            "L2_H_7": "Check for any chemical spill on the shirt",
+            "L2_H_8": "Seek medical attention",
             
             # ============================================================
             # WRONG CARDS (2 total) - Only appear in Hard mode
@@ -348,7 +348,7 @@ LEVELS = [
             {
                 "id": "medium_fall_clean",
                 "difficulty": "Medium",
-                "trigger": "L2_M_3",
+                "trigger": "L2_M_5",
                 "question": "How long do you wash the eye?",
                 "options": [
                     "5-10mins",
@@ -364,11 +364,12 @@ LEVELS = [
             {
                 "id": "hard_fall_assess",
                 "difficulty": "Hard",
-                "trigger": "L2_H_3",
-                "question": "What should you check before moving the student?",
+                "trigger": "L2_H_2",
+                "question": "What should you do once the chemical splashes to your eyes?",
                 "options": [
-                    "Consciousness and movement",
-                    "Ignore and move quickly",
+                    "Blink and hope it goes away",
+                    "Rub it out",
+                    "Go to an eye wash station",
                 ],
                 "correct": "Consciousness and movement",
             },
@@ -376,23 +377,26 @@ LEVELS = [
                 "id": "hard_fall_clean_time",
                 "difficulty": "Hard",
                 "trigger": "L2_H_5",
-                "question": "How should the wound be cleaned?",
+                "question": "Why do you blink while washing the eye?",
                 "options": [
-                    "With clean water and gentle pressure",
-                    "With a dirty tissue",
+                    "Make the pain less painful",
+                    "No reason, just do it",
+                    "To ensure the water rinses the entire eye",
+                    "To ensure the water does not touch the eye",
                 ],
-                "correct": "With clean water and gentle pressure",
+                "correct": "To ensure the water rinses the entire eye",
             },
             {
                 "id": "hard_fall_cover",
                 "difficulty": "Hard",
-                "trigger": "L2_H_6",
-                "question": "What should be used to cover the wound?",
+                "trigger": "L2_H_7",
+                "question": "What do you do when you spot a chemical spill on the shirt?",
                 "options": [
-                    "A clean dressing",
-                    "A dirty cloth",
+                    "Remove the clothes immediately",
+                    "Pour some water over the clothes",
+                    "Ignore. The clothes has done its job",
                 ],
-                "correct": "A clean dressing",
+                "correct": "Remove the clothes immediately",
             },
         ],
         "hint": (
