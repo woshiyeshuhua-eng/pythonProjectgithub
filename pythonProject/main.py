@@ -578,6 +578,8 @@ def empty_progress():
         "score": 0,
         "completed_modes": set(),
         "mode_stars": {},
+        "level_stats": {},
+        "last_played": {},
         "attempt": None,
         "last_screen": "home",
         "selected_level": 0,
@@ -692,6 +694,46 @@ def sanitise_progress(raw_value):
         if last_screen not in allowed_screens:
             last_screen = "home"
 
+        raw_level_stats = data.get("level_stats", {})
+        level_stats = {}
+
+        if isinstance(raw_level_stats, dict):
+            for raw_key, raw_stats in raw_level_stats.items():
+                if not isinstance(raw_stats, dict):
+                    continue
+                try:
+                    level_stats[str(int(raw_key))] = {
+                        "attempts": max(0, int(raw_stats.get("attempts", 0))),
+                        "total_time": max(0, int(raw_stats.get("total_time", 0))),
+                        "total_moves": max(0, int(raw_stats.get("total_moves", 0))),
+                        "best_time": (
+                            max(0, int(raw_stats.get("best_time")))
+                            if raw_stats.get("best_time") is not None
+                            else None
+                        ),
+                        "best_moves": (
+                            max(0, int(raw_stats.get("best_moves")))
+                            if raw_stats.get("best_moves") is not None
+                            else None
+                        ),
+                        "completed": bool(raw_stats.get("completed", False)),
+                    }
+                except (TypeError, ValueError):
+                    continue
+
+        raw_last_played = data.get("last_played", {})
+        last_played = {}
+
+        if isinstance(raw_last_played, dict):
+            for raw_key, raw_timestamp in raw_last_played.items():
+                try:
+                    last_played[str(int(raw_key))] = max(
+                        0.0,
+                        float(raw_timestamp),
+                    )
+                except (TypeError, ValueError):
+                    continue
+
         attempt = data.get(
             "attempt"
         )
@@ -706,6 +748,8 @@ def sanitise_progress(raw_value):
             "score": score,
             "completed_modes": completed_modes,
             "mode_stars": mode_stars,
+            "level_stats": level_stats,
+            "last_played": last_played,
             "attempt": attempt,
             "last_screen": last_screen,
             "selected_level": selected_level,
@@ -1001,6 +1045,27 @@ def build_progress_payload():
                 "Easy",
             )
         ),
+        "level_stats": {
+            str(level_index): dict(
+                st.session_state.get(
+                    get_stats_key(level_index),
+                    {},
+                )
+            )
+            for level_index in range(len(LEVELS))
+            if get_stats_key(level_index) in st.session_state
+        },
+        "last_played": {
+            str(level_index): float(
+                st.session_state.get(
+                    f"last_played_level_{level_index}"
+                )
+            )
+            for level_index in range(len(LEVELS))
+            if st.session_state.get(
+                f"last_played_level_{level_index}"
+            ) is not None
+        },
         "attempt": build_attempt_payload(),
     }
 
@@ -1251,6 +1316,32 @@ def initialise_state(saved_progress):
         "custom_attempt_id": "",
         "picture_component_revision": None,
     }
+
+    saved_level_stats = saved_progress.get("level_stats", {})
+    if isinstance(saved_level_stats, dict):
+        for raw_level_index, stats in saved_level_stats.items():
+            try:
+                level_index = int(raw_level_index)
+            except (TypeError, ValueError):
+                continue
+
+            if (
+                0 <= level_index < len(LEVELS)
+                and isinstance(stats, dict)
+            ):
+                defaults[get_stats_key(level_index)] = copy.deepcopy(stats)
+
+    saved_last_played = saved_progress.get("last_played", {})
+    if isinstance(saved_last_played, dict):
+        for raw_level_index, timestamp in saved_last_played.items():
+            try:
+                level_index = int(raw_level_index)
+                timestamp_value = float(timestamp)
+            except (TypeError, ValueError):
+                continue
+
+            if 0 <= level_index < len(LEVELS):
+                defaults[f"last_played_level_{level_index}"] = timestamp_value
 
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -2122,6 +2213,10 @@ def evaluate_level():
     # Update last played
     update_last_played(level_index)
 
+    # Save updated averages for this Player ID.
+    save_progress()
+    flush_pending_browser_action()
+
     st.session_state.result = {
         "passed": passed,
         "sequence_correct": (
@@ -2310,6 +2405,10 @@ def submit_custom_result(payload):
     
     # Update last played
     update_last_played(level_index)
+
+    # Save updated averages for this Player ID.
+    save_progress()
+    flush_pending_browser_action()
 
     st.session_state.moves = moves
     st.session_state.start_time = time.time() - elapsed
@@ -4688,8 +4787,8 @@ elif screen == "score":
             f'/ 9'
             f'</p>'
             '<p>'
-            'Progress is automatically saved for '
-            '<b>this browser user</b>.'
+            'Progress and level statistics are automatically saved for '
+            '<b>this Player ID</b>.'
             '</p>'
             '</div>'
         ),
@@ -4716,34 +4815,73 @@ elif screen == "score":
             unsafe_allow_html=True,
         )
         
-        # Show level statistics
+        # Show saved average statistics for this level.
         if attempts is not None and attempts > 0:
+            stats_col_1, stats_col_2, stats_col_3 = st.columns(3)
+
+            with stats_col_1:
+                st.markdown(
+                    (
+                        '<div class="stat-box">'
+                        '<div>AVERAGE TIME</div>'
+                        f'<span>{avg_time}s</span>'
+                        '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            with stats_col_2:
+                st.markdown(
+                    (
+                        '<div class="stat-box">'
+                        '<div>AVERAGE MOVES</div>'
+                        f'<span>{avg_moves}</span>'
+                        '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+            with stats_col_3:
+                st.markdown(
+                    (
+                        '<div class="stat-box">'
+                        '<div>TOTAL ATTEMPTS</div>'
+                        f'<span>{attempts}</span>'
+                        '</div>'
+                    ),
+                    unsafe_allow_html=True,
+                )
+
             st.markdown(
                 (
-                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
-                    f'background:#e3f2fd;border-radius:12px;border:3px solid #1565c0;">'
-                    f'<b>📊 LEVEL STATISTICS</b><br>'
-                    f'Average Time: <b>{avg_time}s</b> | '
-                    f'Average Moves: <b>{avg_moves}</b><br>'
-                    f'Best Time: <b>{best_time}s</b> | '
-                    f'Best Moves: <b>{best_moves}</b><br>'
-                    f'Total Attempts: <b>{attempts}</b>'
-                    f'</div>'
+                    '<div style="text-align:center;padding:12px;'
+                    'margin:12px 0 18px 0;background:#e3f2fd;'
+                    'border-radius:12px;border:3px solid #1565c0;">'
+                    f'Best Time: <b>{best_time}s</b> &nbsp; | &nbsp; '
+                    f'Best Moves: <b>{best_moves}</b>'
+                    '</div>'
                 ),
                 unsafe_allow_html=True,
             )
-            
-            # Show last played
+
             last_played = get_last_played(level_index)
             if last_played:
-                st.caption(f"Last played: {format_last_played(last_played)}")
+                st.caption(
+                    f"Last played: {format_last_played(last_played)}"
+                )
         else:
             st.markdown(
                 (
-                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
-                    f'color:#999;font-style:italic;">'
-                    f'No attempts recorded for this level yet'
-                    f'</div>'
+                    '<div style="text-align:center;padding:18px;'
+                    'margin-bottom:16px;color:#666;'
+                    'background:#f4f4f4;border:3px dashed #999;'
+                    'border-radius:12px;">'
+                    'Average Time: <b>—</b> &nbsp; | &nbsp; '
+                    'Average Moves: <b>—</b><br>'
+                    '<span style="font-size:0.9rem;">'
+                    'Complete this level once to record statistics.'
+                    '</span>'
+                    '</div>'
                 ),
                 unsafe_allow_html=True,
             )
