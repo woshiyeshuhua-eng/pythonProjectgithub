@@ -1342,30 +1342,56 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Easy uses 4 slots. Medium uses 6 slots. Hard uses 8 slots for Level 1."""
+    """Easy uses 4 slots, Medium uses 6 slots, and Hard uses 8 slots."""
 
-    if int(level_index) == 0:
-        if difficulty == "Easy":
-            return 4
-        elif difficulty == "Hard":
-            return 8
-        else:  # Medium
-            return 6
+    if difficulty == "Easy":
+        return 4
+
+    if difficulty == "Medium":
+        return 6
+
+    if difficulty == "Hard":
+        return 8
 
     return 6
 
 
 def correct_cards_for(level_index, level, difficulty):
-    """Return the correct sequence required for this difficulty."""
+    """Return only the correct sequence for the selected difficulty.
 
-    if int(level_index) == 0 and difficulty == "Easy":
-        return level["correct_cards"][:4]
-    
-    if int(level_index) == 0 and difficulty == "Hard":
-        # Hard mode uses 8 correct cards
-        return level["correct_cards"][:8]
+    Each mode uses a completely separate set of cards:
+        Easy   -> L1_E_1 to L1_E_4
+        Medium -> L1_M_1 to L1_M_6
+        Hard   -> L1_H_1 to L1_H_8
 
-    return level["correct_cards"][:6]
+    Wrong cards are not part of the correct answer sequence.
+    """
+
+    level_number = int(level_index) + 1
+    mode_code = difficulty_code(difficulty)
+    expected_prefix = f"L{level_number}_{mode_code}_"
+
+    return [
+        card_id
+        for card_id in level["correct_cards"]
+        if card_id.startswith(expected_prefix)
+    ]
+
+
+def wrong_cards_for(level_index, level, difficulty):
+    """Return wrong cards only for Hard mode."""
+
+    if difficulty != "Hard":
+        return []
+
+    level_number = int(level_index) + 1
+    wrong_prefix = f"L{level_number}_H_W"
+
+    return [
+        card_id
+        for card_id in level.get("wrong_cards", [])
+        if card_id.startswith(wrong_prefix)
+    ]
 
 
 def decisions_for(level, difficulty):
@@ -1515,14 +1541,13 @@ def start_puzzle():
         difficulty,
     )
 
-    wrong_count = (
-        2
-        if level_index == 0 and difficulty == "Hard"
-        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
+    wrong_ids = wrong_cards_for(
+        level_index,
+        level,
+        difficulty,
     )
 
-    card_ids = correct_ids.copy()
-    card_ids.extend(level["wrong_cards"][:wrong_count])
+    card_ids = correct_ids + wrong_ids
     random.shuffle(card_ids)
 
     layout = [
@@ -1979,14 +2004,13 @@ def custom_puzzle_cards(level_index, difficulty, level):
         difficulty,
     )
 
-    wrong_count = (
-        2
-        if level_index == 0 and difficulty == "Hard"
-        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
+    wrong_ids = wrong_cards_for(
+        level_index,
+        level,
+        difficulty,
     )
 
-    card_ids = correct_ids.copy()
-    card_ids.extend(level["wrong_cards"][:wrong_count])
+    card_ids = correct_ids + wrong_ids
     random.shuffle(card_ids)
 
     cards = []
