@@ -200,7 +200,7 @@ LEVELS = [
             "L1_M_2": "Notify a teacher",
             "L1_M_3": "Pinch the bridge of the nose",
             "L1_M_4": "Retrieve ice pack",
-            "L1_M_5": "Apply ice pack to bridge of the nose",
+            "L1_M_5": "Apply ice pack",
             "L1_M_6": "Check for any bleeding",
             
             # ============================================================
@@ -1451,30 +1451,35 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Easy uses 4 slots. Medium uses 6 slots. Hard uses 8 slots for Level 1."""
+    """Return the number of story slots for the selected difficulty."""
 
-    if int(level_index) == 0:
-        if difficulty == "Easy":
-            return 4
-        elif difficulty == "Hard":
-            return 8
-        else:  # Medium
-            return 6
-
-    return 6
+    return {
+        "Easy": 4,
+        "Medium": 6,
+        "Hard": 8,
+    }.get(difficulty, 4)
 
 
 def correct_cards_for(level_index, level, difficulty):
-    """Return the correct sequence required for this difficulty."""
+    """Return only the cards belonging to the selected difficulty."""
 
-    if int(level_index) == 0 and difficulty == "Easy":
-        return level["correct_cards"][:4]
-    
-    if int(level_index) == 0 and difficulty == "Hard":
-        # Hard mode uses 8 correct cards
-        return level["correct_cards"][:8]
+    difficulty_code_value = {
+        "Easy": "E",
+        "Medium": "M",
+        "Hard": "H",
+    }.get(difficulty, "E")
 
-    return level["correct_cards"][:6]
+    level_number = int(level_index) + 1
+    card_prefix = f"L{level_number}_{difficulty_code_value}_"
+
+    selected_cards = [
+        card_id
+        for card_id in level.get("correct_cards", [])
+        if str(card_id).startswith(card_prefix)
+        and "_W" not in str(card_id)
+    ]
+
+    return selected_cards[:slot_count_for(level_index, difficulty)]
 
 
 def decisions_for(level, difficulty):
