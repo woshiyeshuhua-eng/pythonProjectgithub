@@ -7,7 +7,6 @@ import time
 import urllib.parse
 from pathlib import Path
 import os
-import hashlib
 import threading
 
 import streamlit as st
@@ -35,7 +34,7 @@ PUZZLE_RESULT_STORAGE_KEY = "first_aid_heroes_pending_puzzle_result"
 PUZZLE_NAV_STORAGE_KEY = "first_aid_heroes_pending_navigation"
 NO_BROWSER_SAVE = "__NO_FIRST_AID_SAVE__"
 DIFFICULTIES = ["Easy", "Medium", "Hard"]
-SERVER_SAVE_FILE = BASE_DIR / "first_aid_heroes_ip_progress.json"
+SERVER_SAVE_FILE = BASE_DIR / "first_aid_heroes_player_progress.json"
 SERVER_SAVE_LOCK = threading.Lock()
 
 
@@ -50,46 +49,24 @@ def normalise_player_id(value):
     return value[:40]
 
 
-def get_client_ip():
-    """Return the visitor IP passed to Streamlit by the hosting proxy."""
-
-    headers = getattr(st.context, "headers", {}) or {}
-    forwarded = (
-        headers.get("X-Forwarded-For")
-        or headers.get("x-forwarded-for")
-        or headers.get("X-Real-IP")
-        or headers.get("x-real-ip")
-        or ""
-    )
-
-    # X-Forwarded-For may contain several addresses. The first is the client.
-    ip_address = str(forwarded).split(",", 1)[0].strip()
-
-    # Local Streamlit/PyCharm does not always provide forwarding headers.
-    if not ip_address:
-        ip_address = "local-device"
-
-    return ip_address
-
-
-def ip_player_id():
-    """Create a privacy-safe stable player key from the visitor IP."""
-
-    digest = hashlib.sha256(get_client_ip().encode("utf-8")).hexdigest()[:24]
-    return f"ip-{digest}"
-
-
 def current_player_id():
-    """Use the visitor IP as the automatic player profile ID."""
+    """Return the active Player ID for this session or URL."""
 
-    return ip_player_id()
+    return normalise_player_id(
+        st.session_state.get("player_id")
+        or st.query_params.get(PLAYER_QUERY_KEY, "")
+    )
 
 
 def current_player_name():
     """Return the display name shown in the game UI."""
 
-    return str(st.session_state.get("player_name") or "Player")
-
+    return str(
+        st.session_state.get("player_name")
+        or st.query_params.get("player_name", "")
+        or current_player_id()
+        or "Player"
+    )
 
 def browser_storage_key():
     """Use a separate Local Storage key for every player profile."""
@@ -174,7 +151,7 @@ def render_player_login():
             max_chars=40,
             help=(
                 "Use the same Player ID next time to continue. "
-                "Each Player ID has a separate save on this browser."
+                "Each Player ID has its own separate saved progress."
             ),
         )
         submitted = st.form_submit_button(
@@ -198,8 +175,8 @@ def render_player_login():
             st.rerun()
 
     st.caption(
-        "Progress is saved separately for each Player ID in this browser. "
-        "Use the same device, browser and Player ID to continue."
+        "Progress is saved separately for each Player ID. "
+        "Use the same Player ID next time to continue."
     )
 
 LEVELS = [
@@ -744,7 +721,7 @@ def sanitise_progress(raw_value):
 
 
 def read_all_server_progress():
-    """Read all IP profiles from the local server save file."""
+    """Read all Player ID profiles from the local server save file."""
 
     with SERVER_SAVE_LOCK:
         if not SERVER_SAVE_FILE.exists():
@@ -758,7 +735,7 @@ def read_all_server_progress():
 
 
 def read_server_progress():
-    """Load the progress stored for the current visitor IP."""
+    """Load the progress stored for the current Player ID."""
 
     raw = read_all_server_progress().get(current_player_id())
     if raw is None:
@@ -767,7 +744,7 @@ def read_server_progress():
 
 
 def write_server_progress(payload_json):
-    """Atomically save the current visitor's progress on the server."""
+    """Atomically save the current Player ID's progress on the server."""
 
     try:
         payload = json.loads(payload_json) if isinstance(payload_json, str) else payload_json
@@ -797,7 +774,7 @@ def write_server_progress(payload_json):
 
 
 def delete_server_progress():
-    """Delete only the save belonging to the current visitor IP."""
+    """Delete only the save belonging to the current Player ID."""
 
     with SERVER_SAVE_LOCK:
         all_progress = {}
@@ -1034,7 +1011,7 @@ def build_progress_payload():
 
 
 def save_progress():
-    """Save immediately by IP and queue a browser Local Storage backup."""
+    """Save immediately by Player ID and queue a browser Local Storage backup."""
 
     payload = build_progress_payload()
     write_server_progress(payload)
@@ -1111,7 +1088,7 @@ def flush_pending_browser_action():
 
 
 def reset_saved_progress():
-    """Reset progress only for the current IP user."""
+    """Reset progress only for the current Player ID."""
 
     delete_server_progress()
     st.session_state.score = 0
@@ -2733,11 +2710,20 @@ def render_custom_image_puzzle():
 
 
 # -----------------------------------------------------------------------------
-# AUTOMATIC IP PROFILE
-# Each public IP receives its own server save. Local Storage remains a backup.
+# PLAYER PROFILE LOGIN
+# Every Player ID receives its own server save and browser-storage backup.
 # -----------------------------------------------------------------------------
-st.session_state.player_id = current_player_id()
-st.session_state.setdefault("player_name", "Player")
+query_player = normalise_player_id(st.query_params.get(PLAYER_QUERY_KEY, ""))
+
+if not st.session_state.get("player_id") and query_player:
+    st.session_state.player_id = query_player
+    st.session_state.player_name = str(
+        st.query_params.get("player_name", query_player)
+    )[:30]
+
+if not current_player_id():
+    render_player_login()
+    st.stop()
 
 active_player_id = current_player_id()
 active_player_name = current_player_name()
@@ -2751,8 +2737,7 @@ if st.query_params.get("player_name") != active_player_name:
 browser_loaded = st.session_state.get("browser_progress_loaded", False)
 
 if not browser_loaded:
-    # Prefer the IP-keyed server save because it is not affected by a slow
-    # streamlit-js-eval response. Use Local Storage only as a fallback.
+    # The Player-ID server save is loaded first. Local Storage is only a backup.
     server_progress = read_server_progress()
 
     if server_progress is not None:
@@ -2760,8 +2745,6 @@ if not browser_loaded:
     else:
         browser_value = read_browser_progress()
         if browser_value is None:
-            # Do not permanently mark a failed JavaScript read as loaded.
-            # Start safely, while future saves are still written server-side.
             initialise_state(empty_progress())
         else:
             restored = sanitise_progress(browser_value)
@@ -3436,7 +3419,7 @@ st.markdown(
 with st.sidebar:
     st.markdown(f"### Player: {current_player_name()}")
     st.caption(f"ID: {current_player_id()}")
-    st.caption("Your progress and unfinished attempt are saved under this Player ID.")
+    st.caption("Your completed levels, stars, score and unfinished attempt are saved under this Player ID.")
     
     # Show save status
     save_key = browser_storage_key()
