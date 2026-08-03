@@ -102,6 +102,14 @@ def clear_runtime_game_state():
         "browser_action_revision",
     ]
 
+    # Also clear statistics keys
+    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
+    keys_to_clear.extend(stats_keys)
+    
+    # Clear last played keys
+    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
+    keys_to_clear.extend(last_played_keys)
+
     for key in keys_to_clear:
         st.session_state.pop(key, None)
 
@@ -275,29 +283,29 @@ LEVELS = [
         ),
     },
     {
-        "title": "Student Falls",
-        "setting": "School Corridor",
-        "story": "A student trips in the school corridor and falls.",
+        "title": "Chemical Splash",
+        "setting": "School Lab",
+        "story": "A student splashes chemicals into his eyes.",
         "correct_cards": ["L2_E_1", "L2_E_2", "L2_E_3", "L2_E_4", "L2_M_1", "L2_M_2", "L2_M_3", "L2_M_4", "L2_M_5", "L2_M_6", "L2_H_1", "L2_H_2", "L2_H_3", "L2_H_4", "L2_H_5", "L2_H_6", "L2_H_7", "L2_H_8"],
         "wrong_cards": ["L2_H_W1", "L2_H_W2"],
         "cards": {
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
             # ============================================================
-            "L2_E_1": "Student trips and falls",
-            "L2_E_2": "Check the area is safe",
-            "L2_E_3": "Check the student before moving",
-            "L2_E_4": "Inform the teacher",
+            "L2_E_1": "Chemical splash goes into the eye",
+            "L2_E_2": "Wash the eye at the eyewash station",
+            "L2_E_3": "Wash for 15-20mins",
+            "L2_E_4": "Seek medical attention",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
             # ============================================================
-            "L2_M_1": "Student trips and falls",
-            "L2_M_2": "Check the area is safe",
-            "L2_M_3": "Check the student before moving",
-            "L2_M_4": "Inform the teacher",
-            "L2_M_5": "Clean the wound with clean materials",
-            "L2_M_6": "Apply a clean dressing",
+            "L2_M_1": "Chemical splash goes into the eye",
+            "L2_M_2": "Painful sting on eye",
+            "L2_M_3": "Call for help",
+            "L2_M_4": "Wash the eye at the eyewash station",
+            "L2_M_5": "Wash for 15-20mins",
+            "L2_M_6": "Seek medical attention",
             
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
@@ -324,13 +332,14 @@ LEVELS = [
             {
                 "id": "easy_fall_move",
                 "difficulty": "Easy",
-                "trigger": "L2_E_3",
-                "question": "Should the student be moved immediately?",
+                "trigger": "L2_E_2",
+                "question": "How should you wash the eye?",
                 "options": [
-                    "No, check for injury first",
-                    "Yes, pull the student up",
+                    "Away from the unaffected eye",
+                    "Towards the unaffected eye",
+                    "Does not matter",
                 ],
-                "correct": "No, check for injury first",
+                "correct": "Away from the unaffected eye",
             },
             
             # ============================================================
@@ -339,13 +348,14 @@ LEVELS = [
             {
                 "id": "medium_fall_clean",
                 "difficulty": "Medium",
-                "trigger": "L2_M_5",
-                "question": "What should be used to clean the wound?",
+                "trigger": "L2_M_3",
+                "question": "How long do you wash the eye?",
                 "options": [
-                    "Clean water and clean materials",
-                    "Dirty tissue",
+                    "5-10mins",
+                    "10-15mins",
+                    "As long as possible",
                 ],
-                "correct": "Clean water and clean materials",
+                "correct": "10-15mins",
             },
             
             # ============================================================
@@ -400,38 +410,38 @@ LEVELS = [
             # ============================================================
             # EASY MODE CARDS (first 4) - 4 cards total
             # ============================================================
-            "L3_E_1": "Student feels dizzy",
-            "L3_E_2": "Student faints",
-            "L3_E_3": "Check responsiveness",
-            "L3_E_4": "Call for help",
+            "L3_E_1": "Student feels dizzy and faints",
+            "L3_E_2": "Check for responsiveness",
+            "L3_E_3": "Elevate the legs",
+            "L3_E_4": "Do not crowd around",
             
             # ============================================================
             # MEDIUM MODE CARDS (6 total) - Easy cards + 2 more
             # ============================================================
-            "L3_M_1": "Student feels dizzy",
-            "L3_M_2": "Student faints",
+            "L3_M_1": "Student feels dizzy and faints",
+            "L3_M_2": "Inform someone to call for 995",
             "L3_M_3": "Check responsiveness",
-            "L3_M_4": "Call for help",
-            "L3_M_5": "Do not give food or drink",
-            "L3_M_6": "Stay and monitor the student",
+            "L3_M_4": "Elevate the legs",
+            "L3_M_5": "Do not crowd around",
+            "L3_M_6": "Stay and monitor the student while waiting for 995",
             
             # ============================================================
             # HARD MODE CARDS (8 total) - Medium cards + 3 more
             # ============================================================
-            "L3_H_1": "Student feels dizzy",
-            "L3_H_2": "Student faints",
+            "L3_H_1": "Student feels dizzy and faints",
+            "L3_H_2": "Inform someone to call for 995",
             "L3_H_3": "Check responsiveness",
-            "L3_H_4": "Call for help",
-            "L3_H_5": "Do not give food or drink",
-            "L3_H_6": "Stay and monitor the student",
-            "L3_H_7": "Check breathing",
-            "L3_H_8": "Keep the student safe",
+            "L3_H_4": "Loosen any tight clothing",
+            "L3_H_5": "Elevate the legs",
+            "L3_H_6": "Do not crowd around",
+            "L3_H_7": "Stay and monitor the student while waiting for 995",
+            "L3_H_8": "Explain what happened",
             
             # ============================================================
             # WRONG CARDS (2 total) - Only appear in Hard mode
             # ============================================================
-            "L3_H_W1": "Give food or drink while unconscious",
-            "L3_H_W2": "Leave the student alone",
+            "L3_H_W1": "Crowd around and call her awake",
+            "L3_H_W2": "Carry her",
         },
         "decisions": [
             # ============================================================
@@ -441,12 +451,13 @@ LEVELS = [
                 "id": "easy_faint_response",
                 "difficulty": "Easy",
                 "trigger": "L3_E_3",
-                "question": "What should you check first?",
+                "question": "How high do you elevate the legs",
                 "options": [
-                    "Responsiveness",
-                    "Check for injuries",
+                    "Above the heart",
+                    "As high as possible",
+                    "As low as possible",
                 ],
-                "correct": "Responsiveness",
+                "correct": "Above the heart",
             },
             
             # ============================================================
@@ -455,10 +466,13 @@ LEVELS = [
             {
                 "id": "medium_faint_food",
                 "difficulty": "Medium",
-                "trigger": "L3_M_5",
-                "question": "Should food or drink be given while unconscious?",
-                "options": ["No", "Yes"],
-                "correct": "No",
+                "trigger": "L3_M_6",
+                "question": "What do you check while waiting for the ambulance?",
+                "options": [
+                    "Just wait",
+                    "Monitor pulse and breathing",
+                ],
+                "correct": "Monitor pulse and breathing",
             },
             
             # ============================================================
@@ -467,35 +481,38 @@ LEVELS = [
             {
                 "id": "hard_faint_breathing",
                 "difficulty": "Hard",
-                "trigger": "L3_H_7",
-                "question": "What should you check after responsiveness?",
+                "trigger": "L3_H_2",
+                "question": "What is the ambulance number?",
                 "options": [
-                    "Breathing",
-                    "Blood pressure",
+                    "999",
+                    "911",
+                    "995",
                 ],
-                "correct": "Breathing",
+                "correct": "995",
             },
             {
                 "id": "hard_faint_position",
                 "difficulty": "Hard",
-                "trigger": "L3_H_6",
-                "question": "What should you do if the student is unconscious?",
+                "trigger": "L3_H_8",
+                "question": "What do you tell the paramedics?",
                 "options": [
-                    "Stay and monitor",
-                    "Leave to get help",
+                    "Anything that is not related",
+                    "Anything that may help the patient (when she fainted, past medical history)",
                 ],
-                "correct": "Stay and monitor",
+                "correct": "Anything that may help the patient (when she fainted, past medical history)",
             },
             {
                 "id": "hard_faint_safe",
                 "difficulty": "Hard",
-                "trigger": "L3_H_8",
-                "question": "How should you keep the student safe?",
+                "trigger": "L3_H_7",
+                "question": "How often do you check for breathing and pulse?",
                 "options": [
-                    "Stay with them and monitor",
-                    "Leave them alone",
+                    "Every 5mins",
+                    "Every 30mins",
+                    "Every 2mins",
+                    "Every 1min",
                 ],
-                "correct": "Stay with them and monitor",
+                "correct": "Every 2mins",
             },
         ],
         "hint": (
@@ -1004,6 +1021,16 @@ def reset_saved_progress():
     st.session_state.selected_picture_card = None
     st.session_state.screen = "home"
 
+    # Clear statistics
+    stats_keys = [key for key in st.session_state.keys() if key.startswith("stats_level_")]
+    for key in stats_keys:
+        st.session_state.pop(key, None)
+    
+    # Clear last played keys
+    last_played_keys = [key for key in st.session_state.keys() if key.startswith("last_played_level_")]
+    for key in last_played_keys:
+        st.session_state.pop(key, None)
+
     st.session_state.pending_browser_action = "reset"
     st.session_state.pending_browser_payload = ""
     st.session_state.browser_action_revision = (
@@ -1026,6 +1053,88 @@ def mode_key(
         f"::{difficulty}"
     )
 
+
+# ============================================================
+# STATISTICS FUNCTIONS - Differentiated by Level
+# ============================================================
+
+def get_stats_key(level_index):
+    """Get the storage key for statistics of a specific level."""
+    return f"stats_level_{int(level_index)}"
+
+
+def update_stats(level_index, time_taken, moves_used):
+    """Update the average time and moves for a level."""
+    stats_key = get_stats_key(level_index)
+    
+    # Initialize stats if not exists
+    if stats_key not in st.session_state:
+        st.session_state[stats_key] = {
+            "attempts": 0,
+            "total_time": 0,
+            "total_moves": 0,
+            "best_time": None,
+            "best_moves": None,
+            "completed": False
+        }
+    
+    stats = st.session_state[stats_key]
+    stats["attempts"] += 1
+    stats["total_time"] += time_taken
+    stats["total_moves"] += moves_used
+    
+    if stats["best_time"] is None or time_taken < stats["best_time"]:
+        stats["best_time"] = time_taken
+    if stats["best_moves"] is None or moves_used < stats["best_moves"]:
+        stats["best_moves"] = moves_used
+
+
+def get_average_stats(level_index):
+    """Get the average time and moves for a level."""
+    stats_key = get_stats_key(level_index)
+    
+    if stats_key not in st.session_state:
+        return None, None, None, None, None
+    
+    stats = st.session_state[stats_key]
+    attempts = stats["attempts"]
+    
+    if attempts == 0:
+        return None, None, None, None, None
+    
+    avg_time = stats["total_time"] // attempts
+    avg_moves = stats["total_moves"] // attempts
+    
+    return avg_time, avg_moves, stats["best_time"], stats["best_moves"], attempts
+
+
+# ============================================================
+# LAST PLAYED TRACKING
+# ============================================================
+
+def update_last_played(level_index):
+    """Update the last played timestamp for a level."""
+    last_played_key = f"last_played_level_{int(level_index)}"
+    st.session_state[last_played_key] = time.time()
+
+
+def get_last_played(level_index):
+    """Get the last played timestamp for a level."""
+    last_played_key = f"last_played_level_{int(level_index)}"
+    if last_played_key in st.session_state:
+        return st.session_state[last_played_key]
+    return None
+
+
+def format_last_played(timestamp):
+    """Format the timestamp as a readable string."""
+    if timestamp is None:
+        return "Never"
+    dt = time.localtime(timestamp)
+    return time.strftime("%b %d, %Y at %I:%M %p", dt)
+
+
+# ============================================================
 
 
 def initialise_state(saved_progress):
@@ -1342,56 +1451,30 @@ def difficulty_code(difficulty):
 
 
 def slot_count_for(level_index, difficulty):
-    """Easy uses 4 slots, Medium uses 6 slots, and Hard uses 8 slots."""
+    """Easy uses 4 slots. Medium uses 6 slots. Hard uses 8 slots for Level 1."""
 
-    if difficulty == "Easy":
-        return 4
-
-    if difficulty == "Medium":
-        return 6
-
-    if difficulty == "Hard":
-        return 8
+    if int(level_index) == 0:
+        if difficulty == "Easy":
+            return 4
+        elif difficulty == "Hard":
+            return 8
+        else:  # Medium
+            return 6
 
     return 6
 
 
 def correct_cards_for(level_index, level, difficulty):
-    """Return only the correct sequence for the selected difficulty.
+    """Return the correct sequence required for this difficulty."""
 
-    Each mode uses a completely separate set of cards:
-        Easy   -> L1_E_1 to L1_E_4
-        Medium -> L1_M_1 to L1_M_6
-        Hard   -> L1_H_1 to L1_H_8
+    if int(level_index) == 0 and difficulty == "Easy":
+        return level["correct_cards"][:4]
+    
+    if int(level_index) == 0 and difficulty == "Hard":
+        # Hard mode uses 8 correct cards
+        return level["correct_cards"][:8]
 
-    Wrong cards are not part of the correct answer sequence.
-    """
-
-    level_number = int(level_index) + 1
-    mode_code = difficulty_code(difficulty)
-    expected_prefix = f"L{level_number}_{mode_code}_"
-
-    return [
-        card_id
-        for card_id in level["correct_cards"]
-        if card_id.startswith(expected_prefix)
-    ]
-
-
-def wrong_cards_for(level_index, level, difficulty):
-    """Return wrong cards only for Hard mode."""
-
-    if difficulty != "Hard":
-        return []
-
-    level_number = int(level_index) + 1
-    wrong_prefix = f"L{level_number}_H_W"
-
-    return [
-        card_id
-        for card_id in level.get("wrong_cards", [])
-        if card_id.startswith(wrong_prefix)
-    ]
+    return level["correct_cards"][:6]
 
 
 def decisions_for(level, difficulty):
@@ -1541,13 +1624,14 @@ def start_puzzle():
         difficulty,
     )
 
-    wrong_ids = wrong_cards_for(
-        level_index,
-        level,
-        difficulty,
+    wrong_count = (
+        2
+        if level_index == 0 and difficulty == "Hard"
+        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
     )
 
-    card_ids = correct_ids + wrong_ids
+    card_ids = correct_ids.copy()
+    card_ids.extend(level["wrong_cards"][:wrong_count])
     random.shuffle(card_ids)
 
     layout = [
@@ -1938,7 +2022,15 @@ def evaluate_level():
                 current_mode_key
             ] = stars
 
+        # Force immediate save
         save_progress()
+        flush_pending_browser_action()
+
+    # Record statistics for this attempt (by level only)
+    update_stats(level_index, elapsed, st.session_state.moves)
+    
+    # Update last played
+    update_last_played(level_index)
 
     st.session_state.result = {
         "passed": passed,
@@ -2004,13 +2096,14 @@ def custom_puzzle_cards(level_index, difficulty, level):
         difficulty,
     )
 
-    wrong_ids = wrong_cards_for(
-        level_index,
-        level,
-        difficulty,
+    wrong_count = (
+        2
+        if level_index == 0 and difficulty == "Hard"
+        else DIFFICULTY_RULES[difficulty]["wrong_cards"]
     )
 
-    card_ids = correct_ids + wrong_ids
+    card_ids = correct_ids.copy()
+    card_ids.extend(level["wrong_cards"][:wrong_count])
     random.shuffle(card_ids)
 
     cards = []
@@ -2118,6 +2211,16 @@ def submit_custom_result(payload):
         elif current_mode_key not in st.session_state.mode_stars:
             st.session_state.mode_stars[current_mode_key] = stars
 
+        # Force immediate save
+        save_progress()
+        flush_pending_browser_action()
+
+    # Record statistics for this attempt (by level only)
+    update_stats(level_index, elapsed, moves)
+    
+    # Update last played
+    update_last_played(level_index)
+
     st.session_state.moves = moves
     st.session_state.start_time = time.time() - elapsed
     st.session_state.decision_answers = dict(answers)
@@ -2146,9 +2249,6 @@ def submit_custom_result(payload):
     st.query_params["level"] = str(level_index)
 
     save_progress()
-
-    # Write the browser save before rerunning so the result screen survives
-    # the next Streamlit refresh.
     flush_pending_browser_action()
     st.rerun()
 
@@ -3246,7 +3346,16 @@ st.markdown(
 
 with st.sidebar:
     st.markdown(f"### Player: {current_player_name()}")
+    st.caption(f"ID: {current_player_id()}")
     st.caption("Your progress and unfinished attempt are saved under this Player ID.")
+    
+    # Show save status
+    save_key = browser_storage_key()
+    st.caption(f"💾 Save key: `{save_key[:30]}...`")
+    
+    if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
+        st.info("📌 You have an unfinished game")
+    
     if st.button("SWITCH PLAYER", use_container_width=True):
         clear_runtime_game_state()
         st.session_state.pop("player_id", None)
@@ -3344,6 +3453,38 @@ def render_home():
             unsafe_allow_html=True,
         )
 
+        # Check if there's an unfinished attempt
+        if st.session_state.get("layout") is not None and st.session_state.get("start_time") is not None:
+            st.markdown(
+                """
+                <div style="text-align:center;padding:15px;margin-bottom:15px;
+                            background:#fff0ae;border:4px solid #202124;border-radius:14px;
+                            box-shadow:6px 6px 0 #202124;">
+                    <span style="font-size:1.2rem;font-weight:bold;">⏳ You have an unfinished game!</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            
+            continue_col1, continue_col2 = st.columns([1, 1])
+            with continue_col1:
+                if st.button("▶ CONTINUE GAME", use_container_width=True):
+                    # Restore the game state
+                    level_index = st.session_state.selected_level
+                    navigate("puzzle", level_index)
+            
+            with continue_col2:
+                if st.button("🗑 DISCARD AND START FRESH", use_container_width=True):
+                    st.session_state.layout = None
+                    st.session_state.previous_layout = None
+                    st.session_state.previous_sequence = [None] * 6
+                    st.session_state.start_time = None
+                    st.session_state.pending_decision = None
+                    st.session_state.decision_answers = {}
+                    st.session_state.selected_picture_card = None
+                    save_progress()
+                    st.rerun()
+
         column_1, column_2, column_3 = (
             st.columns(3)
         )
@@ -3382,6 +3523,15 @@ def render_map():
         for level_index in range(len(LEVELS)):
             unlocked = level_unlocked(level_index)
             level_number = level_index + 1
+            
+            # Get stars for this level
+            stars = level_star_total(level_index)
+            
+            # Create star display string
+            if stars == 0:
+                star_display = "☆☆☆"
+            else:
+                star_display = "⭐" * stars + "☆" * (3 - stars)
 
             if unlocked:
                 # Only unlocked levels are real clickable links.
@@ -3392,8 +3542,14 @@ def render_map():
                         f'map-level-{level_number}" '
                         f'href="{game_query_url("difficulty", level_index)}" '
                         f'target="_self" '
-                        f'title="Open Level {level_number}" '
+                        f'title="Level {level_number}: {star_display}" '
                         f'aria-label="Open Level {level_number}">'
+                        f'<span style="position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);'
+                        f'background:rgba(32,33,36,0.9);color:white;padding:3px 10px;border-radius:8px;'
+                        f'font-size:0.75rem;white-space:nowrap;font-family:Arial,sans-serif;'
+                        f'border:2px solid #ffca28;box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
+                        f'{star_display}'
+                        f'</span>'
                         f'</a>'
                     )
                 )
@@ -3406,12 +3562,18 @@ def render_map():
                         f'map-level-{level_number}" '
                         f'title="Complete Easy mode of Level '
                         f'{level_number - 1} to unlock">'
+                        f'<span style="position:absolute;bottom:-30px;left:50%;transform:translateX(-50%);'
+                        f'background:rgba(100,100,100,0.9);color:white;padding:3px 10px;border-radius:8px;'
+                        f'font-size:0.7rem;white-space:nowrap;font-family:Arial,sans-serif;'
+                        f'border:2px solid #666;box-shadow:0 2px 8px rgba(0,0,0,0.3);">'
+                        f'🔒 LOCKED'
+                        f'</span>'
                         f'</div>'
                     )
                 )
 
         map_html = (
-            '<div class="progress-map-wrapper">'
+            '<div class="progress-map-wrapper" style="margin-bottom:60px;">'
             f'<img src="{map_uri}" alt="School Progress Map">'
             + "".join(hotspot_parts)
             + "</div>"
@@ -3442,6 +3604,7 @@ def render_map():
 
         for level_index, column in enumerate(columns):
             unlocked = level_unlocked(level_index)
+            stars = level_star_total(level_index)
 
             with column:
                 st.markdown(
@@ -3451,6 +3614,9 @@ def render_map():
                         f'{1 if unlocked else 0.5};">'
                         f'<h2>LEVEL {level_index + 1}</h2>'
                         f'<p>{LEVELS[level_index]["title"]}</p>'
+                        f'<div style="font-size:1.5rem;">'
+                        f'{"⭐" * stars}{"☆" * (3 - stars)}'
+                        f'</div>'
                         '</div>'
                     ),
                     unsafe_allow_html=True,
@@ -3493,12 +3659,29 @@ if hasattr(
                     - st.session_state.start_time
                 ),
             )
+        
+        # Get time targets for color coding
+        level_index = st.session_state.selected_level
+        difficulty = st.session_state.difficulty
+        target = targets(level_index, difficulty)
+        
+        # Determine color based on time relative to targets
+        if elapsed <= target["three_time"]:
+            color = "#20a43a"  # Green - good
+        elif elapsed <= target["two_time"]:
+            color = "#ffca28"  # Yellow - okay
+        else:
+            color = "#ef3e3e"  # Red - too slow
+        
+        # Add target times display
+        target_text = f"Target: {target['two_time']}s / {target['three_time']}s"
 
         st.markdown(
             (
-                '<div class="stat-box">'
+                f'<div class="stat-box" style="border-color:{color};">'
                 '<div>TIME</div>'
-                f'<span>{elapsed}s</span>'
+                f'<span style="color:{color};font-size:2rem;">{elapsed}s</span>'
+                f'<div style="font-size:0.7rem;margin-top:4px;color:#666;">{target_text}</div>'
                 '</div>'
             ),
             unsafe_allow_html=True,
@@ -3520,12 +3703,29 @@ else:
                     - st.session_state.start_time
                 ),
             )
+        
+        # Get time targets for color coding
+        level_index = st.session_state.selected_level
+        difficulty = st.session_state.difficulty
+        target = targets(level_index, difficulty)
+        
+        # Determine color based on time relative to targets
+        if elapsed <= target["three_time"]:
+            color = "#20a43a"  # Green - good
+        elif elapsed <= target["two_time"]:
+            color = "#ffca28"  # Yellow - okay
+        else:
+            color = "#ef3e3e"  # Red - too slow
+        
+        # Add target times display
+        target_text = f"Target: {target['two_time']}s / {target['three_time']}s"
 
         st.markdown(
             (
-                '<div class="stat-box">'
+                f'<div class="stat-box" style="border-color:{color};">'
                 '<div>TIME</div>'
-                f'<span>{elapsed}s</span>'
+                f'<span style="color:{color};font-size:2rem;">{elapsed}s</span>'
+                f'<div style="font-size:0.7rem;margin-top:4px;color:#666;">{target_text}</div>'
                 '</div>'
             ),
             unsafe_allow_html=True,
@@ -4156,6 +4356,88 @@ elif screen == "result":
                     unsafe_allow_html=True,
                 )
 
+        # Add score animation if points were earned
+        if result["passed"] and result["points"] > 0:
+            st.balloons()
+            st.markdown(
+                f"""
+                <div style="text-align:center;padding:20px;margin:10px 0;
+                            background:#ffca28;border:5px solid #202124;border-radius:18px;
+                            box-shadow:8px 8px 0 #202124;animation:pulse 1.5s ease-in-out;">
+                    <div style="font-family:'Bangers',cursive;font-size:3rem;color:#202124;">
+                        +{result['points']} POINTS!
+                    </div>
+                    <div style="font-size:1rem;color:#202124;">
+                        ⭐ {result['stars']} stars earned!
+                    </div>
+                </div>
+                <style>
+                @keyframes pulse {{
+                    0% {{ transform: scale(1); }}
+                    50% {{ transform: scale(1.05); }}
+                    100% {{ transform: scale(1); }}
+                }}
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # Show statistics comparison (by level)
+        avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
+            level_index
+        )
+        
+        if attempts is not None and attempts > 0:
+            st.markdown(
+                (
+                    '<div class="comic-panel" style="margin-top:20px;">'
+                    '<h3 style="margin-top:0;">📊 LEVEL STATISTICS</h3>'
+                    '</div>'
+                ),
+                unsafe_allow_html=True,
+            )
+            
+            stat_cols = st.columns(4)
+            
+            with stat_cols[0]:
+                st.metric(
+                    "Your Time",
+                    f"{result['time']}s",
+                    delta=f"{avg_time - result['time']}s vs avg" if result['time'] < avg_time else None,
+                    delta_color="normal" if result['time'] < avg_time else "inverse"
+                )
+            
+            with stat_cols[1]:
+                st.metric(
+                    "Your Moves",
+                    f"{result['moves']}",
+                    delta=f"{avg_moves - result['moves']} vs avg" if result['moves'] < avg_moves else None,
+                    delta_color="normal" if result['moves'] < avg_moves else "inverse"
+                )
+            
+            with stat_cols[2]:
+                if best_time is not None:
+                    st.metric(
+                        "Best Time",
+                        f"{best_time}s",
+                        delta="🏆" if result['time'] == best_time else None
+                    )
+            
+            with stat_cols[3]:
+                if best_moves is not None:
+                    st.metric(
+                        "Best Moves",
+                        f"{best_moves}",
+                        delta="🏆" if result['moves'] == best_moves else None
+                    )
+            
+            st.caption(f"Total attempts for this level: {attempts}")
+            
+            # Show last played
+            last_played = get_last_played(level_index)
+            if last_played:
+                st.caption(f"Last played: {format_last_played(last_played)}")
+
         if result["passed"]:
             if (
                 result["difficulty"]
@@ -4320,7 +4602,7 @@ elif screen == "score":
             '<div class="comic-panel" '
             'style="text-align:center;">'
             '<div class="comic-label">'
-            'SCORE'
+            'SCORE & STATISTICS'
             '</div>'
             f'<h1>'
             f'{st.session_state.score} POINTS'
@@ -4345,6 +4627,11 @@ elif screen == "score":
     for level_index, level in enumerate(
         LEVELS
     ):
+        # Get statistics for this level (combined across all difficulties)
+        avg_time, avg_moves, best_time, best_moves, attempts = get_average_stats(
+            level_index
+        )
+        
         st.markdown(
             (
                 '<div class="comic-panel">'
@@ -4356,6 +4643,38 @@ elif screen == "score":
             ),
             unsafe_allow_html=True,
         )
+        
+        # Show level statistics
+        if attempts is not None and attempts > 0:
+            st.markdown(
+                (
+                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
+                    f'background:#e3f2fd;border-radius:12px;border:3px solid #1565c0;">'
+                    f'<b>📊 LEVEL STATISTICS</b><br>'
+                    f'Average Time: <b>{avg_time}s</b> | '
+                    f'Average Moves: <b>{avg_moves}</b><br>'
+                    f'Best Time: <b>{best_time}s</b> | '
+                    f'Best Moves: <b>{best_moves}</b><br>'
+                    f'Total Attempts: <b>{attempts}</b>'
+                    f'</div>'
+                ),
+                unsafe_allow_html=True,
+            )
+            
+            # Show last played
+            last_played = get_last_played(level_index)
+            if last_played:
+                st.caption(f"Last played: {format_last_played(last_played)}")
+        else:
+            st.markdown(
+                (
+                    f'<div style="text-align:center;padding:12px;margin-bottom:12px;'
+                    f'color:#999;font-style:italic;">'
+                    f'No attempts recorded for this level yet'
+                    f'</div>'
+                ),
+                unsafe_allow_html=True,
+            )
 
         mode_columns = st.columns(
             3
@@ -4391,13 +4710,11 @@ elif screen == "score":
             )
 
             if completed:
-                status = "Completed"
-
+                status = "✅ Completed"
             elif unlocked:
-                status = "Unlocked"
-
+                status = "🔓 Unlocked"
             else:
-                status = "Locked"
+                status = "🔒 Locked"
 
             with column:
                 st.markdown(
