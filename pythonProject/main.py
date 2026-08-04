@@ -282,7 +282,8 @@ LEVELS = [
         ],
         "hint": (
             "Sit upright, lean slightly forward, pinch below the bridge "
-            "of the nose for 10-15 minutes and use a cool compress."
+            "Ice pack the nose for 10-15 minutes and use a cool compress."
+            "Do not tilt the head backwards. Ask a teacher for the first aid bag and continue checking for bleeding
         ),
     },
     {
@@ -403,8 +404,9 @@ LEVELS = [
             },
         ],
         "hint": (
-            "Check safety, assess the student, "
-            "get adult help and use clean materials."
+            "Go to the eyewash station immediately and rinse the affected eye, "
+            "Wash from the affected eye towards the outside, away from the unaffected eye."
+            "Blink while rinsing, continue washing for about 15–20 minutes, check the clothing for chemical spills and seek medical attention."
         ),
     },
     {
@@ -523,8 +525,9 @@ LEVELS = [
             },
         ],
         "hint": (
-            "Check responsiveness and breathing, "
-            "call for help and continue monitoring."
+            "Check whether the student is responsive and ask someone to call 995, "
+            "Lay the student down, loosen tight clothing and raise the legs above the heart."
+            "Do not crowd around the student. Monitor breathing and pulse while waiting for the ambulance, then explain what happened to the paramedics"
         ),
     },
 ]
