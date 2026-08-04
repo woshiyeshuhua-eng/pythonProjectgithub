@@ -98,7 +98,7 @@ def clear_runtime_game_state():
         "completed_modes", "mode_stars", "unlocked_achievements",
         "layout", "previous_layout",
         "previous_sequence", "moves", "start_time", "decision_answers",
-        "pending_decision", "result", "show_hint", "sort_key",
+        "pending_decision", "result", "show_hint", "selected_hint", "sort_key",
         "slot_warning", "browser_progress_loaded", "attempt_restored",
         "custom_attempt_id", "selected_picture_card",
         "pending_browser_action", "pending_browser_payload",
@@ -280,11 +280,16 @@ LEVELS = [
                 "correct": "10-15 mins",
             },
         ],
-        "hint": (
-            "Sit upright, lean slightly forward, pinch below the bridge "
-            "Ice pack the nose for 10-15 minutes and use a cool compress."
-            "Do not tilt the head backwards. Ask a teacher for the first aid bag and continue checking for bleeding
-        ),
+        "hints": [
+            (
+                "Sit upright, lean slightly forward and pinch below the bridge "
+                "of the nose for 10–15 minutes."
+            ),
+            (
+                "Use a cool compress or ice pack. Do not tilt the head backwards, "
+                "and continue checking for bleeding."
+            ),
+        ],
     },
     {
         "title": "Chemical Splash",
@@ -403,11 +408,17 @@ LEVELS = [
                 "correct": "Remove the clothes immediately",
             },
         ],
-        "hint": (
-            "Go to the eyewash station immediately and rinse the affected eye, "
-            "Wash from the affected eye towards the outside, away from the unaffected eye."
-            "Blink while rinsing, continue washing for about 15–20 minutes, check the clothing for chemical spills and seek medical attention."
-        ),
+        "hints": [
+            "Go to the eyewash station immediately and rinse the affected eye.",
+            (
+                "Wash from the affected eye towards the outside, away from the "
+                "unaffected eye."
+            ),
+            (
+                "Blink while rinsing, continue washing for about 15–20 minutes, "
+                "check the clothing for chemical spills and seek medical attention."
+            ),
+        ],
     },
     {
         "title": "Fainting",
@@ -524,11 +535,17 @@ LEVELS = [
                 "correct": "Every 2mins",
             },
         ],
-        "hint": (
-            "Check whether the student is responsive and ask someone to call 995, "
-            "Lay the student down, loosen tight clothing and raise the legs above the heart."
-            "Do not crowd around the student. Monitor breathing and pulse while waiting for the ambulance, then explain what happened to the paramedics"
-        ),
+        "hints": [
+            "Check whether the student is responsive and ask someone to call 995.",
+            (
+                "Lay the student down, loosen tight clothing and raise the legs "
+                "above the heart."
+            ),
+            (
+                "Do not crowd around the student. Monitor breathing and pulse while "
+                "waiting for the ambulance, then explain what happened to the paramedics."
+            ),
+        ],
     },
 ]
 
@@ -1006,6 +1023,7 @@ def build_attempt_payload():
                 False,
             )
         ),
+        "selected_hint": st.session_state.get("selected_hint"),
         "selected_picture_card": st.session_state.get(
             "selected_picture_card"
         ),
@@ -1187,6 +1205,7 @@ def reset_saved_progress():
     st.session_state.pending_decision = None
     st.session_state.result = None
     st.session_state.show_hint = False
+    st.session_state.selected_hint = None
     st.session_state.selected_picture_card = None
     st.session_state.screen = "home"
 
@@ -1329,6 +1348,7 @@ def initialise_state(saved_progress):
         "pending_decision": None,
         "result": None,
         "show_hint": False,
+        "selected_hint": None,
         "sort_key": 0,
         "slot_warning": False,
         "browser_progress_loaded": True,
@@ -1520,6 +1540,11 @@ def initialise_state(saved_progress):
                         "show_hint",
                         False,
                     )
+                )
+
+                restored_hint = attempt.get("selected_hint")
+                st.session_state.selected_hint = (
+                    str(restored_hint) if restored_hint else None
                 )
 
                 restored_selected = attempt.get("selected_picture_card")
@@ -1815,6 +1840,22 @@ def decisions_for(level, difficulty):
     ]
 
 
+def choose_hint_for_attempt(level):
+    """Choose exactly one hint that remains fixed for the whole attempt."""
+
+    hints = level.get("hints", [])
+
+    if not isinstance(hints, list):
+        hints = [str(hints)] if hints else []
+
+    clean_hints = [str(hint).strip() for hint in hints if str(hint).strip()]
+
+    if not clean_hints:
+        return "Think carefully about the correct first-aid sequence."
+
+    return random.choice(clean_hints)
+
+
 def find_image_path(filename_without_extension):
     """
     Load an image using the exact filename.
@@ -1988,6 +2029,7 @@ def start_puzzle():
     st.session_state.pending_decision = None
     st.session_state.result = None
     st.session_state.show_hint = False
+    st.session_state.selected_hint = choose_hint_for_attempt(level)
     st.session_state.slot_warning = False
     st.session_state.selected_picture_card = None
     st.session_state.sort_key += 1
@@ -2378,6 +2420,7 @@ def evaluate_level():
         "points": new_points,
         "difficulty": difficulty,
         "level_index": level_index,
+        "selected_hint": st.session_state.get("selected_hint"),
     }
 
     st.session_state.show_hint = False
@@ -2575,6 +2618,7 @@ def submit_custom_result(payload):
         "points": new_points,
         "difficulty": difficulty,
         "level_index": level_index,
+        "selected_hint": st.session_state.get("selected_hint"),
     }
     st.session_state.show_hint = False
     st.session_state.custom_attempt_id = ""
@@ -2922,6 +2966,27 @@ def render_custom_image_puzzle():
 
                 st.markdown('</div>', unsafe_allow_html=True)
 
+    # -------------------------- ONE HINT PER PLAY -------------------------
+    if st.button(
+        "HINT",
+        key=f"puzzle_hint_{st.session_state.custom_attempt_id}",
+        use_container_width=True,
+    ):
+        st.session_state.show_hint = not st.session_state.show_hint
+        save_progress()
+        st.rerun()
+
+    if st.session_state.show_hint:
+        st.markdown(
+            (
+                '<div class="hint-card">'
+                '<b>Hint for this play:</b> '
+                f'{st.session_state.get("selected_hint") or choose_hint_for_attempt(level)}'
+                '</div>'
+            ),
+            unsafe_allow_html=True,
+        )
+
     # -------------------------- CONTROLS -------------------------
     control_back, control_restart, control_done = st.columns(3)
     with control_back:
@@ -2933,6 +2998,7 @@ def render_custom_image_puzzle():
             st.session_state.pending_decision = None
             st.session_state.decision_answers = {}
             st.session_state.custom_attempt_id = ""
+            st.session_state.selected_hint = None
             st.session_state.selected_picture_card = None
             navigate("map")
 
@@ -4762,6 +4828,26 @@ elif screen == "result":
             if last_played:
                 st.caption(f"Last played: {format_last_played(last_played)}")
 
+        # The same single hint selected at the start of this play is available here.
+        if st.button(
+            "HINT",
+            key="result_single_hint",
+            use_container_width=True,
+        ):
+            st.session_state.show_hint = not st.session_state.show_hint
+            st.rerun()
+
+        if st.session_state.show_hint:
+            st.markdown(
+                (
+                    '<div class="hint-card">'
+                    '<b>Hint for this play:</b> '
+                    f'{result.get("selected_hint") or st.session_state.get("selected_hint") or choose_hint_for_attempt(level)}'
+                    '</div>'
+                ),
+                unsafe_allow_html=True,
+            )
+
         if result["passed"]:
             if (
                 result["difficulty"]
@@ -4874,9 +4960,7 @@ elif screen == "result":
                             navigate("map")
 
         else:
-            home_column, hint_column, retry_column = (
-                st.columns(3)
-            )
+            home_column, retry_column = st.columns(2)
 
             with home_column:
                 if st.button(
@@ -4886,18 +4970,6 @@ elif screen == "result":
                 ):
                     navigate("home")
 
-            with hint_column:
-                if st.button(
-                    "HINT",
-                    key="failed_result_hint",
-                    use_container_width=True,
-                ):
-                    st.session_state.show_hint = (
-                        True
-                    )
-
-                    st.rerun()
-
             with retry_column:
                 if st.button(
                     "TRY AGAIN",
@@ -4905,17 +4977,6 @@ elif screen == "result":
                     use_container_width=True,
                 ):
                     start_puzzle()
-
-            if st.session_state.show_hint:
-                st.markdown(
-                    (
-                        '<div class="hint-card">'
-                        '<b>Hint:</b> '
-                        f'{level["hint"]}'
-                        '</div>'
-                    ),
-                    unsafe_allow_html=True,
-                )
 
 
 elif screen == "score":
