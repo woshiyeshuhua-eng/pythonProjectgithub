@@ -4787,6 +4787,17 @@ elif screen == "result":
                 unsafe_allow_html=True,
             )
             
+            st.markdown("""
+            <style>
+            div[data-testid="stMetric"] label,
+            div[data-testid="stMetric"] label p,
+            div[data-testid="stMetric"] div[data-testid="stMetricValue"],
+            div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
+                color: #000000 !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
             stat_cols = st.columns(4)
             
             with stat_cols[0]:
