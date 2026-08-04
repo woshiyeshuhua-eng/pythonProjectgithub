@@ -362,7 +362,7 @@ LEVELS = [
                 "options": [
                     "5-10mins",
                     "10-15mins",
-                    "15-20mina
+                    "15-20mins",
                     "As long as possible",
                 ],
                 "correct": "15-20mins",
